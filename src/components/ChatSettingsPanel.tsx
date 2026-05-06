@@ -1,9 +1,11 @@
+import { toast } from 'sonner';
 import React, { useState, useEffect } from "react";
 import { X, Shield, Palette, Ban, Flag, Trash2, Eraser, Check } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { db } from "../lib/firebase";
 import { doc, updateDoc, writeBatch, collection, query, where, getDocs } from "firebase/firestore";
 import { sanitizeUrl } from "../services/fileApi";
+import ConfirmModal from "./ConfirmModal";
 
 interface ChatSettingsPanelProps {
   isOpen: boolean;
@@ -15,6 +17,9 @@ interface ChatSettingsPanelProps {
 
 export default function ChatSettingsPanel({ isOpen, onClose, conversation, currentUser, messages }: ChatSettingsPanelProps) {
   const [showThemes, setShowThemes] = useState(false);
+  const [confirmState, setConfirmState] = useState<{isOpen: boolean, title: string, message: string, onConfirm: () => void}>({
+    isOpen: false, title: "", message: "", onConfirm: () => {}
+  });
 
   if (!isOpen) return null;
 
@@ -31,35 +36,46 @@ export default function ChatSettingsPanel({ isOpen, onClose, conversation, curre
   };
 
   const handleClearHistory = async () => {
-    if (!window.confirm("Deseja apagar todas as mensagens para você?")) return;
-    try {
-      // Use lastClearedAt timestamp for efficiency
-      await updateDoc(doc(db, "conversations", conversation._id), {
-        [`lastClearedAt.${currentUser._id}`]: Date.now()
-      });
-      onClose();
-    } catch (err) {
-      console.error(err);
-    }
+    setConfirmState({
+      isOpen: true,
+      title: "Apagar Mensagens",
+      message: "Deseja apagar todas as mensagens para você?",
+      onConfirm: async () => {
+        try {
+          await updateDoc(doc(db, "conversations", conversation._id), {
+            [`lastClearedAt.${currentUser._id}`]: Date.now()
+          });
+          onClose();
+        } catch (err) {
+          console.error(err);
+        }
+      }
+    });
   };
 
   const handleBlock = async () => {
-    if (!window.confirm("Deseja bloquear este usuário?")) return;
-    try {
-      const blockedBy = conversation.blockedBy || [];
-      if (!blockedBy.includes(currentUser._id)) {
-        await updateDoc(doc(db, "conversations", conversation._id), {
-          blockedBy: [...blockedBy, currentUser._id]
-        });
-        alert("Usuário bloqueado");
+    setConfirmState({
+      isOpen: true,
+      title: "Bloquear Usuário",
+      message: "Deseja bloquear este usuário?",
+      onConfirm: async () => {
+        try {
+          const blockedBy = conversation.blockedBy || [];
+          if (!blockedBy.includes(currentUser._id)) {
+            await updateDoc(doc(db, "conversations", conversation._id), {
+              blockedBy: [...blockedBy, currentUser._id]
+            });
+            toast.success("Usuário bloqueado");
+          }
+        } catch (err) {
+          console.error(err);
+        }
       }
-    } catch (err) {
-      console.error(err);
-    }
+    });
   };
 
   const handleReport = () => {
-    alert("Denúncia enviada com sucesso para moderação.");
+    toast.success("Denúncia enviada com sucesso para moderação.");
   };
 
   const themes = [
@@ -72,6 +88,7 @@ export default function ChatSettingsPanel({ isOpen, onClose, conversation, curre
   ];
 
   return (
+    <>
     <motion.div 
       initial={{ x: "100%" }}
       animate={{ x: 0 }}
@@ -191,5 +208,13 @@ export default function ChatSettingsPanel({ isOpen, onClose, conversation, curre
         <p className="text-center text-[9px] text-zinc-600 font-mono uppercase tracking-[2px]">Encrypted Session Active</p>
       </div>
     </motion.div>
+    <ConfirmModal
+      isOpen={confirmState.isOpen}
+      title={confirmState.title}
+      message={confirmState.message}
+      onConfirm={confirmState.onConfirm}
+      onCancel={() => setConfirmState(prev => ({ ...prev, isOpen: false }))}
+    />
+    </>
   );
 }

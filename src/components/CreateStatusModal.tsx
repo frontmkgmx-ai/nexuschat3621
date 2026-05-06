@@ -1,3 +1,4 @@
+import { toast } from 'sonner';
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { X, Image as ImageIcon, Video, Type, Palette, Upload, Crop } from "lucide-react";
@@ -82,7 +83,7 @@ export default function CreateStatusModal({ onClose, onPublish }: CreateStatusMo
       setMediaFile(file);
       setMediaPreview(URL.createObjectURL(file));
     } else {
-      alert("Formato não suportado");
+      toast.error("Formato não suportado");
       return;
     }
   };
@@ -97,7 +98,7 @@ export default function CreateStatusModal({ onClose, onPublish }: CreateStatusMo
         const publicUrl = response.file.url;
         onPublish({ type: mediaType, url: publicUrl, text, bgColor });
       } catch (err: any) {
-        alert(err.message || "Erro ao fazer upload da mídia");
+        toast.error(err.message || "Erro ao fazer upload da mídia");
       } finally {
         setIsUploading(false);
       }

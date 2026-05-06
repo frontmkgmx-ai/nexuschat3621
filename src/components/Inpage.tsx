@@ -1,3 +1,4 @@
+import { toast } from 'sonner';
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { motion, AnimatePresence, useAnimationControls } from "motion/react";
 import { Plus, Clock, X, ChevronLeft, ChevronRight, Volume2, VolumeX } from "lucide-react";
@@ -91,7 +92,7 @@ export default function Inpage({ currentUser }: { currentUser: any }) {
       setIsModalOpen(false);
     } catch (e) {
       console.error("Failed to publish status:", e);
-      alert("Failed to publish status");
+      toast.error("Failed to publish status");
     }
   };
 

@@ -1,3 +1,4 @@
+import { toast } from 'sonner';
 import React, { useState, useEffect } from "react";
 import { 
   MessageCircle, 
@@ -44,6 +45,8 @@ import TermsAndPrivacy from "./TermsAndPrivacy";
 
 type InternalTab = "CHATS" | "CONTACTS" | "GROUPS" | "SETTINGS" | "PROFILE" | "INPAGE" | "COMMUNITIES" | "NEWS";
 
+import ConfirmModal from "./ConfirmModal";
+
 export default function Sidebar({
   currentUser,
   selectedConvo,
@@ -59,6 +62,9 @@ export default function Sidebar({
 }) {
   const [activeTab, setActiveTab] = useState<InternalTab>("CHATS");
   const [settingsView, setSettingsView] = useState<"MENU" | "ACCOUNT" | "PRIVACY" | "AUDIO_VIDEO" | "BACKUPS" | "TERMS">("MENU");
+  const [confirmState, setConfirmState] = useState<{isOpen: boolean, title: string, message: string, onConfirm: () => void}>({
+    isOpen: false, title: "", message: "", onConfirm: () => {}
+  });
   const [search, setSearch] = useState("");
   const [showAddContact, setShowAddContact] = useState(false);
   const [newContactName, setNewContactName] = useState("");
@@ -298,17 +304,23 @@ export default function Sidebar({
   };
 
   const handleDeleteConvo = async (convo: any) => {
-    if(!confirm("Tem certeza que deseja excluir esta conversa para você? (O histórico será perdido)")) return;
-    try {
-      setChatContextMenu(null);
-      // Soft delete for current user
-      await updateDoc(doc(db, "conversations", convo._id), {
-         [`deletedBy.${currentUser._id}`]: true
-      });
-      if(selectedConvo?._id === convo._id) {
-         onSelectConvo(null);
+    setConfirmState({
+      isOpen: true,
+      title: "Excluir Conversa",
+      message: "Tem certeza que deseja excluir esta conversa para você? (O histórico será perdido)",
+      onConfirm: async () => {
+        try {
+          setChatContextMenu(null);
+          // Soft delete for current user
+          await updateDoc(doc(db, "conversations", convo._id), {
+             [`deletedBy.${currentUser._id}`]: true
+          });
+          if(selectedConvo?._id === convo._id) {
+             onSelectConvo(null);
+          }
+        } catch(e) { console.error(e); }
       }
-    } catch(e) { console.error(e); }
+    });
   };
 
   const [longPressTimer, setLongPressTimer] = useState<NodeJS.Timeout | null>(null);
@@ -373,7 +385,7 @@ export default function Sidebar({
         const input = `+${getCountryCallingCode(countryCode)}${newContactPhone.replace(/\D/g, "")}`;
         const parsed = parsePhoneNumber(input);
         if (!parsed?.isValid()) {
-           alert("Número de telefone inválido.");
+           toast.error("Número de telefone inválido.");
            return;
         }
         finalPhoneNumber = parsed.number;
@@ -386,7 +398,7 @@ export default function Sidebar({
       } else {
         const inputEmail = newContactEmail.trim().toLowerCase();
         if (!inputEmail.includes("@")) {
-          alert("E-mail inválido.");
+          toast.error("E-mail inválido.");
           return;
         }
         finalEmail = inputEmail;
@@ -412,7 +424,7 @@ export default function Sidebar({
       setNewContactEmail("");
       setShowAddContact(false);
     } catch (err: any) {
-      alert(err.message || "Falha ao adicionar contato");
+      toast.error(err.message || "Falha ao adicionar contato");
     }
   };
 
@@ -422,9 +434,9 @@ export default function Sidebar({
         username: profileName,
       });
       setIsEditingProfile(false);
-      alert("Perfil atualizado!");
+      toast.success("Perfil atualizado!");
     } catch (e) {
-      alert("Falha ao atualizar perfil");
+      toast.error("Falha ao atualizar perfil");
     }
   };
 
@@ -440,7 +452,7 @@ export default function Sidebar({
       const authWindow = window.open(url, "google_auth", "width=500,height=600");
       if (!authWindow) {
          setIsLinkingProvider(false);
-         alert("O bloqueador de pop-ups bloqueou a janela. Por favor, permita popups ou abra o aplicativo em uma nova aba usando o botão no topo direito.");
+         toast.error("O bloqueador de pop-ups bloqueou a janela. Por favor, permita popups ou abra o aplicativo em uma nova aba usando o botão no topo direito.");
          return;
       }
 
@@ -449,7 +461,7 @@ export default function Sidebar({
          if (event.data?.type === 'GOOGLE_AUTH_ERROR') {
             setIsLinkingProvider(false);
             if (event.data.error !== 'access_denied') {
-               alert("Erro ao autenticar: " + event.data.error);
+               toast.error("Erro ao autenticar: " + event.data.error);
             }
             window.removeEventListener('message', handleMessage);
          } else if (event.data?.type === 'GOOGLE_AUTH_SUCCESS' && event.data.action === 'link_google') {
@@ -463,9 +475,9 @@ export default function Sidebar({
                 googleEmail: userEmail,
                 googleUid: userId,
               });
-              alert("Conta Google vinculada com sucesso!");
+              toast.success("Conta Google vinculada com sucesso!");
             } catch (err: any) {
-              alert("Erro ao salvar vinculação no banco de dados.");
+              toast.error("Erro ao salvar vinculação no banco de dados.");
             } finally {
               setIsLinkingProvider(false);
             }
@@ -474,7 +486,7 @@ export default function Sidebar({
       window.addEventListener('message', handleMessage);
     } catch (error: any) {
       console.error("Error linking Google:", error);
-      alert("Erro ao iniciar a vinculação com o Google.");
+      toast.error("Erro ao iniciar a vinculação com o Google.");
       setIsLinkingProvider(false);
     }
   };
@@ -494,10 +506,10 @@ export default function Sidebar({
         } catch(e) {}
       }
       
-      alert("Conta Google desvinculada com sucesso!");
+      toast.success("Conta Google desvinculada com sucesso!");
     } catch (error: any) {
       console.error("Error unlinking Google:", error);
-      alert("Erro ao desvincular conta: " + error.message);
+      toast.error("Erro ao desvincular conta: " + error.message);
     } finally {
       setIsLinkingProvider(false);
     }
@@ -532,7 +544,7 @@ export default function Sidebar({
     } catch (error) {
        console.error("Failed to upload photo", error);
        setAvatarUploadProgress(null);
-       alert("Falha ao enviar foto de perfil");
+       toast.error("Falha ao enviar foto de perfil");
     }
   };
 
@@ -556,7 +568,7 @@ export default function Sidebar({
     } catch (error) {
        console.error("Failed to upload banner", error);
        setBannerUploadProgress(null);
-       alert("Falha ao enviar foto de fundo");
+       toast.error("Falha ao enviar foto de fundo");
     }
   };
 
@@ -800,7 +812,7 @@ export default function Sidebar({
                                handleStartConvo(contact.registeredUserId);
                                setShowContactPicker(false);
                              } else {
-                               alert("Usuário não cadastrado.");
+                               toast.error("Usuário não cadastrado.");
                              }
                            }}
                            className="flex items-center gap-3 p-3 rounded-xl hover:bg-[#2B2D31] cursor-pointer transition-colors"
@@ -848,7 +860,7 @@ export default function Sidebar({
                               const authWindow = window.open(url, "google_auth", "width=500,height=600");
                               if (!authWindow) {
                                  setIsSyncingContacts(false);
-                                 alert("O bloqueador de pop-ups bloqueou a janela. Por favor, permita popups ou abra o aplicativo em uma nova aba usando o botão no topo direito.");
+                                 toast.error("O bloqueador de pop-ups bloqueou a janela. Por favor, permita popups ou abra o aplicativo em uma nova aba usando o botão no topo direito.");
                                  return;
                               }
 
@@ -856,7 +868,7 @@ export default function Sidebar({
                                  if (!event.origin.includes('localhost') && !event.origin.includes('run.app') && !event.origin.includes('pages.dev') && !event.origin.includes('nexuschat')) return;
                                  if (event.data?.type === 'GOOGLE_AUTH_ERROR') {
                                     setIsSyncingContacts(false);
-                                    alert("Erro ao autenticar: " + event.data.error);
+                                    toast.error("Erro ao autenticar: " + event.data.error);
                                     window.removeEventListener('message', handleMessage);
                                  } else if (event.data?.type === 'GOOGLE_AUTH_SUCCESS' && event.data.action === 'sync_contacts') {
                                     window.removeEventListener('message', handleMessage);
@@ -903,12 +915,12 @@ export default function Sidebar({
                                                 addedCount++;
                                              }
                                           }
-                                          alert(`${addedCount} contatos Google sincronizados com sucesso.`);
+                                          toast.success(`${addedCount} contatos Google sincronizados com sucesso.`);
                                        } else {
-                                          alert("Nenhum contato encontrado no Google.");
+                                          toast.error("Nenhum contato encontrado no Google.");
                                        }
                                     } catch (err: any) {
-                                       alert("Erro ao sincronizar: " + err.message);
+                                       toast.error("Erro ao sincronizar: " + err.message);
                                     } finally {
                                        setIsSyncingContacts(false);
                                     }
@@ -917,7 +929,7 @@ export default function Sidebar({
                               window.addEventListener('message', handleMessage);
 
                            } catch(e: any) {
-                              alert("Erro ao iniciar sincronização: " + e.message);
+                              toast.error("Erro ao iniciar sincronização: " + e.message);
                               setIsSyncingContacts(false);
                            }
                         }}
@@ -961,7 +973,7 @@ export default function Sidebar({
                           if (contact.registeredUserId) {
                             handleStartConvo(contact.registeredUserId);
                           } else {
-                            alert("Usuário não cadastrado.");
+                            toast.error("Usuário não cadastrado.");
                           }
                         }}
                         className="flex items-center mx-2 px-3 py-3 my-0.5 rounded-2xl cursor-pointer transition-colors"
@@ -1607,11 +1619,11 @@ export default function Sidebar({
                       onClick={async () => {
                          const currentCount = showAddConvoMembers.participants?.length || 0;
                          if (currentCount >= 5) {
-                            alert("Este chat atingiu o limite de 5 pessoas.");
+                            toast.error("Este chat atingiu o limite de 5 pessoas.");
                             return;
                          }
                          if (!contact.registeredUserId) {
-                            alert("Contato não possui conta vinculada.");
+                            toast.error("Contato não possui conta vinculada.");
                             return;
                          }
                          try {
@@ -1638,6 +1650,13 @@ export default function Sidebar({
         </div>
       )}
 
+      <ConfirmModal
+        isOpen={confirmState.isOpen}
+        title={confirmState.title}
+        message={confirmState.message}
+        onConfirm={confirmState.onConfirm}
+        onCancel={() => setConfirmState(prev => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 }

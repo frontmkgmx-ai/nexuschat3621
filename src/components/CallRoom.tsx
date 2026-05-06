@@ -1,3 +1,4 @@
+import { toast } from 'sonner';
 import React, { useEffect, useRef, useState } from 'react';
 import { PhoneOff, Mic, MicOff, Camera, CameraOff, MonitorUp, ChevronDown, Volume2, MessageSquare, Phone, User, Settings2, Activity, Wifi, X } from 'lucide-react';
 import { useWebRTC } from '../hooks/useWebRTC';
@@ -286,7 +287,7 @@ export default function CallRoom({ currentUser, conversation, callType, onEndCal
   const toggleScreenShare = async () => {
     if (!isScreenSharing) {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
-        alert("Screen sharing is not supported.");
+        toast.error("Screen sharing is not supported.");
         return;
       }
       try {

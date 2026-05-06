@@ -101,11 +101,22 @@ export default function NewsView() {
       className="flex flex-col h-full absolute inset-0 w-full pt-4 bg-[#111214]"
     >
       <div className="px-5 py-4 shrink-0 border-b border-[#2B2D31]">
-        <h2 className="text-2xl font-bold text-zinc-100 tracking-tight">Changelog <span className="text-sm font-normal text-zinc-500 bg-[#2B2D31] px-2 py-0.5 rounded-full">v1.1.11</span></h2>
+        <h2 className="text-2xl font-bold text-zinc-100 tracking-tight">Changelog <span className="text-sm font-normal text-zinc-500 bg-[#2B2D31] px-2 py-0.5 rounded-full">v1.1.12</span></h2>
         <p className="text-zinc-500 text-sm mt-1">Acompanhe as últimas melhorias e correções.</p>
       </div>
       
       <div className="flex-1 overflow-y-auto custom-scrollbar pb-20 px-5 pt-8 space-y-8">
+        <div className="relative pl-8 border-l border-[#2B2D31] group">
+          <div className="absolute -left-2 top-0 w-4 h-4 rounded-full bg-[#1e1f22] border-2 border-[#2B2D31] group-hover:border-indigo-500 transition-colors" />
+          <div className="flex items-center gap-2 mb-2 text-zinc-500 group-hover:text-indigo-400 transition-colors">
+            <Sparkles className="w-4 h-4" />
+            <h3 className="font-semibold text-zinc-200">Alertas e Confirmações Integrados</h3>
+          </div>
+          <p className="text-sm text-zinc-400 leading-relaxed max-w-2xl">
+            - Removemos as antigas e intrusivas caixas de alerta padrão do navegador (janelas popups de erro ou confirmação).
+            - Desenvolvemos e incorporamos um novo sistema de notificações (toasts) no topo da tela e modais de confirmação 100% visuais, nativos e integrados ao design do próprio aplicativo, promovendo imersão, usabilidade transparente e visual fluido, preservando a imersão na interface sem bloquar o navegador sem aviso.
+          </p>
+        </div>
         <div className="relative pl-8 border-l border-[#2B2D31] group">
           <div className="absolute -left-2 top-0 w-4 h-4 rounded-full bg-[#1e1f22] border-2 border-[#2B2D31] group-hover:border-indigo-500 transition-colors" />
           <div className="flex items-center gap-2 mb-2 text-zinc-500 group-hover:text-indigo-400 transition-colors">

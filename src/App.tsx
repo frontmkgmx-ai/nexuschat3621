@@ -7,6 +7,8 @@ import { rtdb, db, auth } from "./lib/firebase";
 import { ref, set, onDisconnect } from "firebase/database";
 import { doc, getDoc, setDoc, updateDoc, onSnapshot } from "firebase/firestore";
 
+import { Toaster } from 'sonner';
+
 export default function App() {
   const [currentUser, setCurrentUser] = useState<any>(() => {
     const saved = sessionStorage.getItem("chat_user");
@@ -156,6 +158,7 @@ export default function App() {
     <div 
       className="h-[100dvh] w-full bg-zinc-950 flex flex-col items-center justify-center p-0 md:p-4 overflow-hidden relative"
     >
+      <Toaster position="top-center" theme="dark" richColors />
       <div 
         className="flex w-full h-full max-w-[1600px] bg-zinc-900 md:border md:border-zinc-800 shadow-2xl md:rounded-2xl z-10 overflow-hidden relative"
         style={{ WebkitTransform: "translate3d(0,0,0)", transform: "translate3d(0,0,0)" }}
