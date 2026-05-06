@@ -52,6 +52,11 @@ export function useWebRTC({ callId, userId, userName, isGroup }: UseWebRTCParams
     const pc = new RTCPeerConnection({
       iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: 'stun:stun2.l.google.com:19302' },
+        { urls: 'stun:stun3.l.google.com:19302' },
+        { urls: 'stun:stun4.l.google.com:19302' },
+        { urls: 'stun:global.stun.twilio.com:3478' }
       ],
     });
 
@@ -85,6 +90,21 @@ export function useWebRTC({ callId, userId, userName, isGroup }: UseWebRTCParams
       setRemoteStreams((prev) => ({ ...prev, [targetId]: stream }));
     };
 
+    pc.onnegotiationneeded = async () => {
+      try {
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        currentSocket.emit('webrtc:offer', {
+          callId, targetId, sourceId: userId, offer
+        });
+        currentSocket.emit('webrtc-offer', {
+          roomId: callId, targetUserId: targetId, fromUserId: userId, offer
+        });
+      } catch (err) {
+        console.error('Error during renegotiation:', err);
+      }
+    };
+
     pcRef.current[targetId] = pc;
     return pc;
   }, [callId, userId]);
@@ -102,7 +122,21 @@ export function useWebRTC({ callId, userId, userName, isGroup }: UseWebRTCParams
       const pc = getOrCreatePeerConnection(remoteSourceId, socket);
       
       try {
-        await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
+        const offerCollision = pc.signalingState !== "stable" || pc.localDescription?.type === "offer";
+        const polite = userId < remoteSourceId;
+
+        if (offerCollision) {
+           if (!polite) {
+              return;
+           }
+           await Promise.all([
+             pc.setLocalDescription({ type: "rollback" }),
+             pc.setRemoteDescription(new RTCSessionDescription(data.offer))
+           ]);
+        } else {
+           await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
+        }
+
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
         
@@ -132,7 +166,9 @@ export function useWebRTC({ callId, userId, userName, isGroup }: UseWebRTCParams
       const pc = pcRef.current[remoteSourceId];
       if (pc) {
         try {
-          await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
+          if (pc.signalingState === 'have-local-offer') {
+            await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
+          }
         } catch (err) {
           console.error('Error handling answer:', err);
         }

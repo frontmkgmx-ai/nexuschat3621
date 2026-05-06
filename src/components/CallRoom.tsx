@@ -95,7 +95,7 @@ const ParticipantView: React.FC<{ participant: any, isLocal?: boolean, volume?: 
         autoPlay 
         playsInline 
         muted={isLocal} 
-        className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${hasVideo ? 'opacity-100' : 'opacity-0'}`} 
+        className={`absolute inset-0 w-full h-full object-contain transition-opacity duration-500 ${hasVideo ? 'opacity-100' : 'opacity-0'}`} 
         ref={videoRef} 
       />
       
@@ -398,7 +398,7 @@ export default function CallRoom({ currentUser, conversation, callType, onEndCal
         onClick={() => setIsMinimized(false)}
         className="fixed bottom-24 right-6 w-24 h-32 sm:w-32 sm:h-40 bg-zinc-900 rounded-2xl border-2 border-indigo-500 shadow-[0_0_20px_rgba(99,102,241,0.3)] overflow-hidden cursor-pointer z-50 flex items-center justify-center hover:scale-105 transition-transform group"
       >
-         <video muted autoPlay playsInline ref={localVideoRef} className="absolute inset-0 w-full h-full object-cover" />
+         <video muted autoPlay playsInline ref={localVideoRef} className="absolute inset-0 w-full h-full object-contain" />
       </div>
     );
   }
