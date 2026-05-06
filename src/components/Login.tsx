@@ -8,6 +8,7 @@ import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 type LoginStep = "PHONE" | "OTP" | "PROFILE";
 
 import { sanitizeUrl } from "../services/fileApi";
+import { CALL_API_BASE } from "../services/callApi";
 
 export default function Login({ onLogin }: { onLogin: (user: any) => void }) {
   const [step, setStep] = useState<LoginStep>("PHONE");
@@ -97,7 +98,7 @@ export default function Login({ onLogin }: { onLogin: (user: any) => void }) {
       const scope = "email profile";
       const action = "login";
       
-      const urlRes = await fetch(`/api/auth/google/url?action=${action}&scope=${encodeURIComponent(scope)}`);
+      const urlRes = await fetch(`${CALL_API_BASE}/api/auth/google/url?action=${action}&scope=${encodeURIComponent(scope)}`);
       const { url } = await urlRes.json();
       
       const authWindow = window.open(url, "google_auth", "width=500,height=600");
@@ -108,7 +109,7 @@ export default function Login({ onLogin }: { onLogin: (user: any) => void }) {
       }
 
       const handleMessage = async (event: MessageEvent) => {
-         if (!event.origin.includes('localhost') && !event.origin.includes('run.app') && !event.origin.includes('pages.dev') && !event.origin.includes('nexuschat')) return;
+         if (event.data?.type !== 'GOOGLE_AUTH_SUCCESS' && event.data?.type !== 'GOOGLE_AUTH_ERROR') return;
          if (event.data?.type === 'GOOGLE_AUTH_ERROR') {
             setLoading(false);
             if (event.data.error !== 'access_denied') {

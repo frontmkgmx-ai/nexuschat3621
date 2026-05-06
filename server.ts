@@ -136,8 +136,8 @@ async function startServer() {
     let redirectUri = process.env.GOOGLE_REDIRECT_URI || `${backendOrigin}/api/auth/google/callback`;
     
     // Fallback overrides to fixing domain issue
-    if (redirectUri.includes("ironvalecraft.shop") || !redirectUri.startsWith("http")) {
-       redirectUri = "https://nexuschat-55d.pages.dev/api/auth/google/callback";
+    if (!redirectUri.includes("localhost")) {
+       redirectUri = process.env.GOOGLE_REDIRECT_URI || "https://nexuschat-55d.pages.dev/api/auth/google/callback";
     }
 
     const stateObj = { origin: backendOrigin, action: action as string };
@@ -180,8 +180,8 @@ async function startServer() {
       
       let redirectUri = process.env.GOOGLE_REDIRECT_URI || `${parsedState.origin}/api/auth/google/callback`;
       
-      if (redirectUri.includes("ironvalecraft.shop") || !redirectUri.startsWith("http")) {
-         redirectUri = "https://nexuschat-55d.pages.dev/api/auth/google/callback";
+      if (!redirectUri.includes("localhost")) {
+         redirectUri = process.env.GOOGLE_REDIRECT_URI || "https://nexuschat-55d.pages.dev/api/auth/google/callback";
       }
 
       const tokenRes = await fetch("https://oauth2.googleapis.com/token", {

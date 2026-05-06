@@ -37,6 +37,7 @@ import { parsePhoneNumber, getCountryCallingCode, CountryCode, getCountries } fr
 import { AnimatePresence, motion } from "motion/react";
 import { db, auth } from "../lib/firebase";
 import { collection, query, where, onSnapshot, getDocs, doc, setDoc, updateDoc, serverTimestamp, addDoc, getDoc, writeBatch } from "firebase/firestore";
+import { CALL_API_BASE } from "../services/callApi";
 import { GoogleAuthProvider, linkWithPopup, unlink, signInWithPopup } from "firebase/auth";
 import { uploadProfilePhoto, sanitizeUrl } from "../services/fileApi";
 import NewsView from "./NewsView";
@@ -446,7 +447,7 @@ export default function Sidebar({
       const scope = "email profile";
       const action = "link_google";
       
-      const urlRes = await fetch(`/api/auth/google/url?action=${action}&scope=${encodeURIComponent(scope)}`);
+      const urlRes = await fetch(`${CALL_API_BASE}/api/auth/google/url?action=${action}&scope=${encodeURIComponent(scope)}`);
       const { url } = await urlRes.json();
       
       const authWindow = window.open(url, "google_auth", "width=500,height=600");
@@ -457,7 +458,7 @@ export default function Sidebar({
       }
 
       const handleMessage = async (event: MessageEvent) => {
-         if (!event.origin.includes('localhost') && !event.origin.includes('run.app') && !event.origin.includes('pages.dev') && !event.origin.includes('nexuschat')) return;
+         if (event.data?.type !== 'GOOGLE_AUTH_SUCCESS' && event.data?.type !== 'GOOGLE_AUTH_ERROR') return;
          if (event.data?.type === 'GOOGLE_AUTH_ERROR') {
             setIsLinkingProvider(false);
             if (event.data.error !== 'access_denied') {
@@ -854,7 +855,7 @@ export default function Sidebar({
                               const scope = "https://www.googleapis.com/auth/contacts.readonly email profile";
                               const action = "sync_contacts";
                               
-                              const urlRes = await fetch(`/api/auth/google/url?action=${action}&scope=${encodeURIComponent(scope)}`);
+                              const urlRes = await fetch(`${CALL_API_BASE}/api/auth/google/url?action=${action}&scope=${encodeURIComponent(scope)}`);
                               const { url } = await urlRes.json();
                               
                               const authWindow = window.open(url, "google_auth", "width=500,height=600");
@@ -865,7 +866,7 @@ export default function Sidebar({
                               }
 
                               const handleMessage = async (event: MessageEvent) => {
-                                 if (!event.origin.includes('localhost') && !event.origin.includes('run.app') && !event.origin.includes('pages.dev') && !event.origin.includes('nexuschat')) return;
+                                 if (event.data?.type !== 'GOOGLE_AUTH_SUCCESS' && event.data?.type !== 'GOOGLE_AUTH_ERROR') return;
                                  if (event.data?.type === 'GOOGLE_AUTH_ERROR') {
                                     setIsSyncingContacts(false);
                                     toast.error("Erro ao autenticar: " + event.data.error);
