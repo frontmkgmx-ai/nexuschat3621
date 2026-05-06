@@ -3,6 +3,7 @@ import { getAnalytics } from "firebase/analytics";
 import { getFirestore } from "firebase/firestore";
 import { getDatabase } from "firebase/database";
 import { getAuth } from "firebase/auth";
+import { getMessaging, isSupported } from "firebase/messaging";
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -20,3 +21,7 @@ export const analytics = getAnalytics(app);
 export const db = getFirestore(app);
 export const rtdb = getDatabase(app);
 export const auth = getAuth(app);
+
+// Use a promise to handle getting the messaging instance safely since FCM is not always supported (e.g. some browsers/incognito)
+export const messagingPromise = isSupported().then(supported => supported ? getMessaging(app) : null);
+

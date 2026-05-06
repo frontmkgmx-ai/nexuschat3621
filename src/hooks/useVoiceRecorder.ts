@@ -22,24 +22,27 @@ export function useVoiceRecorder(maxDurationSeconds = 300) {
     }
   }, []);
 
+  const currentAudioUrlRef = useRef<string | null>(null);
+
   const cleanup = useCallback(() => {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
       mediaRecorderRef.current.stop();
     }
     stopMicrophoneTracks();
     if (timerRef.current) clearInterval(timerRef.current);
-    if (audioUrl) {
-      URL.revokeObjectURL(audioUrl);
-      setAudioUrl(null);
+    if (currentAudioUrlRef.current) {
+      URL.revokeObjectURL(currentAudioUrlRef.current);
+      currentAudioUrlRef.current = null;
     }
+    setAudioUrl(null);
     setAudioBlob(null);
     setDurationSeconds(0);
     setStatus("idle");
     setErrorMsg(null);
-  }, [audioUrl, stopMicrophoneTracks]);
+  }, [stopMicrophoneTracks]);
 
   useEffect(() => {
-     return cleanup;
+     return () => cleanup();
   }, [cleanup]);
 
   const startRecording = useCallback(async () => {
@@ -51,22 +54,34 @@ export function useVoiceRecorder(maxDurationSeconds = 300) {
         throw new Error("Navegador não suporta a gravação de áudio.");
       }
 
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          sampleRate: 48000,
+          channelCount: 1
+        }
+      });
       streamRef.current = stream;
 
-      let options = { mimeType: 'audio/webm;codecs=opus' };
-      if (!MediaRecorder.isTypeSupported(options.mimeType)) {
-         options = { mimeType: 'audio/webm' };
-      }
-      if (!MediaRecorder.isTypeSupported(options.mimeType)) {
-         // Fallback para outros formatos se webm não for suportado
-         options = { mimeType: '' }; 
+      let mimeType = '';
+      const types = [
+        'audio/webm;codecs=opus',
+        'audio/webm',
+        'audio/mp4',
+        'audio/aac',
+        ''
+      ];
+      for (const t of types) {
+         if (t === '' || MediaRecorder.isTypeSupported(t)) {
+            mimeType = t;
+            break;
+         }
       }
 
-      const mediaRecorder = new MediaRecorder(stream, {
-         ...options,
-         audioBitsPerSecond: 32000 
-      });
+      const options = mimeType ? { mimeType, audioBitsPerSecond: 128000 } : { audioBitsPerSecond: 128000 };
+      const mediaRecorder = new MediaRecorder(stream, options);
       mediaRecorderRef.current = mediaRecorder;
       chunksRef.current = [];
 
@@ -81,7 +96,8 @@ export function useVoiceRecorder(maxDurationSeconds = 300) {
         if (timerRef.current) clearInterval(timerRef.current);
         
         if (chunksRef.current.length > 0) {
-           const blob = new Blob(chunksRef.current, { type: options.mimeType || 'audio/webm' });
+           const actualMimeType = mediaRecorder.mimeType || mimeType || 'audio/webm';
+           const blob = new Blob(chunksRef.current, { type: actualMimeType });
            if (blob.size === 0) {
               setErrorMsg("Erro: Gravação vazia.");
               setStatus("error");
@@ -91,6 +107,7 @@ export function useVoiceRecorder(maxDurationSeconds = 300) {
            const url = URL.createObjectURL(blob);
            setAudioBlob(blob);
            setAudioUrl(url);
+           currentAudioUrlRef.current = url;
            
            // Calculate exactly how long it was instead of relying only on intervals
            const finalDuration = Math.max(1, Math.floor((Date.now() - startTimeRef.current) / 1000));
@@ -100,6 +117,7 @@ export function useVoiceRecorder(maxDurationSeconds = 300) {
               URL.revokeObjectURL(url);
               setAudioBlob(null);
               setAudioUrl(null);
+              currentAudioUrlRef.current = null;
               setStatus("idle");
               // Silent rejection for < 1s
               return;

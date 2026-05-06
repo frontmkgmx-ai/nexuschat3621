@@ -217,18 +217,21 @@ export default function ChatInput({
     }
   };
 
-  const handleTouchStart = (e: React.TouchEvent | React.MouseEvent) => {
+  const handlePointerDown = (e: React.PointerEvent) => {
+      e.preventDefault();
       if (status !== 'idle' && status !== 'error') return;
       startRecording();
   };
 
-  const handleTouchEnd = (e: React.TouchEvent | React.MouseEvent) => {
+  const handlePointerUp = (e: React.PointerEvent) => {
+      e.preventDefault();
       if (isRecording) {
          stopRecording();
       }
   };
   
-  const handleMouseLeave = () => {
+  const handlePointerOut = (e: React.PointerEvent) => {
+      e.preventDefault();
       if (isRecording) {
           stopRecording();
       }
@@ -306,12 +309,10 @@ export default function ChatInput({
             ) : (
               <div 
                 className={`p-3.5 rounded-full cursor-pointer hover:bg-white/5 active:scale-95 transition-all text-zinc-400 select-none touch-none ${isRecording ? 'bg-[#18181b] shadow-[0_0_15px_rgba(239,68,68,0.2)]' : 'bg-[#18181b] border border-white/5'}`}
-                onMouseDown={handleTouchStart}
-                onMouseUp={handleTouchEnd}
-                onMouseLeave={handleMouseLeave}
-                onTouchStart={handleTouchStart}
-                onTouchEnd={handleTouchEnd}
-                onTouchCancel={handleTouchEnd}
+                onPointerDown={handlePointerDown}
+                onPointerUp={handlePointerUp}
+                onPointerOut={handlePointerOut}
+                onPointerCancel={handlePointerOut}
                 onContextMenu={(e) => e.preventDefault()}
               >
                 <Mic className={`w-[18px] h-[18px] ${isRecording ? 'text-red-500 fill-red-500' : 'text-zinc-400 hover:text-zinc-200'}`} />

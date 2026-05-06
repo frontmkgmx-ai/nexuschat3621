@@ -180,22 +180,39 @@ export async function mkdirFileApi(path: string) {
 export function getVoiceMediaUrl(path: string) {
   // TODO: Em um bucket privado, atualizar futuramente para usar createSignedUrl do Supabase.
   // Atualmente o bucket é público, então usamos a url pública direta.
-  return getPublicFileUrl(path);
+  if (!path) return '';
+  if (path.startsWith('http://') || path.startsWith('https://')) return path;
+  
+  const cleanPath = path.startsWith('/') ? path.substring(1) : path;
+  let file = cleanPath;
+  if (cleanPath.startsWith(BUCKET_NAME + '/')) {
+    file = cleanPath.substring(BUCKET_NAME.length + 1);
+  }
+  
+  return `${PUBLIC_FILE_API_BASE_URL}/storage/v1/object/public/${BUCKET_NAME}/${file}`;
 }
 
 export async function uploadVoiceToStorage(conversationId: string, messageId: string, blob: Blob, onProgress?: (p: number) => void) {
   const uuid = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-  // Extrutura pedida: voice-messages/{conversationId}/{messageId}/voice-{uuid}.webm
-  const path = `voice-messages/${conversationId}/${messageId}/voice-${uuid}.webm`;
   
   const fileType = blob.type || 'audio/webm;codecs=opus';
-  const file = new File([blob], `voice-${uuid}.webm`, { type: fileType });
+  let ext = 'webm';
+  if (fileType.includes('mp4')) ext = 'm4a';
+  else if (fileType.includes('aac')) ext = 'aac';
+  else if (fileType.includes('mpeg')) ext = 'mp3';
+
+  // Extrutura pedida: voice-messages/{conversationId}/{messageId}/voice-{uuid}.ext
+  const path = `voice-messages/${conversationId}/${messageId}/voice-${uuid}.${ext}`;
+  
+  const file = new File([blob], `voice-${uuid}.${ext}`, { type: fileType });
+  
+  const contentTypeStr = file.type.split(';')[0];
   
   // Utilizando o backend existente de storage presign
   const res = await fetch("/api/storage/presign", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ filename: path, contentType: file.type })
+      body: JSON.stringify({ filename: path, contentType: contentTypeStr })
   });
   if (!res.ok) throw new Error("Falha ao obter URL de upload");
   const { url } = await res.json();
@@ -203,7 +220,7 @@ export async function uploadVoiceToStorage(conversationId: string, messageId: st
   await new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       xhr.open("PUT", url, true);
-      xhr.setRequestHeader("Content-Type", file.type);
+      xhr.setRequestHeader("Content-Type", contentTypeStr);
       xhr.setRequestHeader("Cache-Control", "public, max-age=31536000"); // cache longo
       
       if (onProgress) {
