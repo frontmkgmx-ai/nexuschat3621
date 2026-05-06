@@ -1,0 +1,46 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+}
+
+html {
+  font-size: 90%;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+body {
+  @apply bg-zinc-950 text-zinc-100 antialiased;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  @apply bg-zinc-800 rounded-full hover:bg-zinc-700 transition-colors;
+}
+
+.custom-audio-player audio::-webkit-media-controls-panel {
+  background-color: rgba(39, 39, 42, 0.4);
+}
+.custom-audio-player audio::-webkit-media-controls-play-button,
+.custom-audio-player audio::-webkit-media-controls-mute-button,
+.custom-audio-player audio::-webkit-media-controls-timeline,
+.custom-audio-player audio::-webkit-media-controls-current-time-display,
+.custom-audio-player audio::-webkit-media-controls-time-remaining-display {
+  filter: invert(1) hue-rotate(180deg);
+}

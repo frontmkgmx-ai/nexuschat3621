@@ -1,0 +1,9 @@
+{
+  "name": "Remix: Nexus Chat",
+  "description": "A robust real-time messenger application built with React, Tailwind CSS, and Supabase featuring S3-native media uploads, status stories, real-time sync, and user profile management.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "display-capture"
+  ]
+}

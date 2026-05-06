@@ -1,0 +1,15 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Nexus Calls API Docs</title><style>body{font-family:Inter,system-ui,Arial;margin:0;background:#0b1020;color:#eef2ff}main{max-width:980px;margin:auto;padding:24px}.card{background:#121a33;border:1px solid #263456;border-radius:18px;padding:18px;margin:16px 0;box-shadow:0 16px 40px #0004}code,pre{background:#060913;border:1px solid #263456;border-radius:12px;padding:12px;display:block;overflow:auto;color:#b9f6ca}.pill{display:inline-block;background:#24345e;padding:6px 10px;border-radius:999px;margin:4px}h1,h2{color:#fff}button{border:0;border-radius:10px;padding:10px 12px;background:#6d5dfc;color:white;font-weight:700;cursor:pointer}</style></head><body><main><h1>Nexus Calls API</h1><p>API HTTP + Socket.IO para chamadas 1v1, voz em grupo, video em grupo, compartilhamento de tela, eventos de midia e sinalizacao WebRTC.</p><div class="card"><h2>Base URL</h2><pre id="base">http://54.233.121.231:4000</pre><button onclick="navigator.clipboard.writeText(document.getElementById('base').innerText)">Copiar</button></div><div class="card"><h2>Rotas HTTP</h2><span class="pill">GET /health</span><span class="pill">GET /config/public</span><span class="pill">GET /rooms</span><span class="pill">POST /rooms</span><span class="pill">GET /rooms/:roomId</span><span class="pill">PATCH /rooms/:roomId</span><span class="pill">DELETE /rooms/:roomId</span></div><div class="card"><h2>Eventos Socket.IO</h2><pre>join-room, leave-room, webrtc-offer, webrtc-answer, webrtc-ice-candidate, media-state, screen-share-start, screen-share-stop, voice-activity, room-message, reaction, participant-joined, participant-left</pre></div><div class="card"><h2>Exemplo frontend</h2><pre id="client">import { io } from 'socket.io-client';
+
+const socket = io('http://54.233.121.231:4000', { transports: ['websocket'] });
+
+socket.emit('join-room', {
+  roomId: 'chat_123',
+  userId: 'user_123',
+  displayName: 'Rafael',
+  media: { audio: true, video: true, screen: false }
+});
+
+socket.on('participant-joined', data => console.log(data));
+
+socket.emit('webrtc-offer', { roomId: 'chat_123', targetUserId: 'user_456', offer });
+socket.on('webrtc-offer', async ({ fromUserId, offer }) => { /* criar answer */ });</pre><button onclick="navigator.clipboard.writeText(document.getElementById('client').innerText)">Copiar para AI</button></div></main></body></html>

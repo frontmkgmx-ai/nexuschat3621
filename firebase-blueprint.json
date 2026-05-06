@@ -1,0 +1,25 @@
+{
+  "entities": {
+    "Status": {
+      "title": "Status",
+      "description": "User status entity",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "type": { "type": "string", "enum": ["text", "image", "video", "gif", "audio"] },
+        "text": { "type": "string" },
+        "caption": { "type": "string" },
+        "file": { "type": "object" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "expiresAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "type", "createdAt", "expiresAt"]
+    }
+  },
+  "firestore": {
+    "/statuses/{statusId}": {
+      "schema": "Status",
+      "description": "Collection of all active user statuses"
+    }
+  }
+}
