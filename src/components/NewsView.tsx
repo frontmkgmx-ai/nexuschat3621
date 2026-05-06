@@ -101,11 +101,21 @@ export default function NewsView() {
       className="flex flex-col h-full absolute inset-0 w-full pt-4 bg-[#111214]"
     >
       <div className="px-5 py-4 shrink-0 border-b border-[#2B2D31]">
-        <h2 className="text-2xl font-bold text-zinc-100 tracking-tight">Changelog <span className="text-sm font-normal text-zinc-500 bg-[#2B2D31] px-2 py-0.5 rounded-full">v1.1.14</span></h2>
+        <h2 className="text-2xl font-bold text-zinc-100 tracking-tight">Changelog <span className="text-sm font-normal text-zinc-500 bg-[#2B2D31] px-2 py-0.5 rounded-full">v1.1.15</span></h2>
         <p className="text-zinc-500 text-sm mt-1">Acompanhe as últimas melhorias e correções.</p>
       </div>
       
       <div className="flex-1 overflow-y-auto custom-scrollbar pb-20 px-5 pt-8 space-y-8">
+        <div className="relative pl-8 border-l border-[#2B2D31] group">
+          <div className="absolute -left-2 top-0 w-4 h-4 rounded-full bg-[#1e1f22] border-2 border-[#2B2D31] group-hover:border-indigo-500 transition-colors" />
+          <div className="flex items-center gap-2 mb-2 text-zinc-500 group-hover:text-indigo-400 transition-colors">
+            <Sparkles className="w-4 h-4" />
+            <h3 className="font-semibold text-zinc-200">Sincronização de Contatos Otimizada Integrada ao Firebase Auth</h3>
+          </div>
+          <p className="text-sm text-zinc-400 leading-relaxed max-w-2xl">
+            - Integramos completamente a "Sincronização de contatos" do Google na nova malha segura do Firebase Auth, assim como a vinculação de conta, contornando o erro fatal 400 (invalid_request) enfrentado pelos usuários anteriormente associado com URIs antigas ou domínios rígidos; isso trará mais rapidez para acessar seus contatos de forma local no seu perfil sem repassar acesso adicional ao backend.
+          </p>
+        </div>
         <div className="relative pl-8 border-l border-[#2B2D31] group">
           <div className="absolute -left-2 top-0 w-4 h-4 rounded-full bg-[#1e1f22] border-2 border-[#2B2D31] group-hover:border-indigo-500 transition-colors" />
           <div className="flex items-center gap-2 mb-2 text-zinc-500 group-hover:text-indigo-400 transition-colors">

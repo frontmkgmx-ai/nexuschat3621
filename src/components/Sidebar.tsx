@@ -830,83 +830,64 @@ export default function Sidebar({
                            try {
                               setIsSyncingContacts(true);
                               
-                              // Trigger custom Google Auth api
-                              const scope = "https://www.googleapis.com/auth/contacts.readonly email profile";
-                              const action = "sync_contacts";
+                              const provider = new GoogleAuthProvider();
+                              provider.addScope('https://www.googleapis.com/auth/contacts.readonly');
+                              const result = await signInWithPopup(auth, provider);
                               
-                              const urlRes = await fetch(`${CALL_API_BASE}/api/auth/google/url?action=${action}&scope=${encodeURIComponent(scope)}`);
-                              const { url } = await urlRes.json();
+                              const credential = GoogleAuthProvider.credentialFromResult(result);
+                              const token = credential?.accessToken;
                               
-                              const authWindow = window.open(url, "google_auth", "width=500,height=600");
-                              if (!authWindow) {
-                                 setIsSyncingContacts(false);
-                                 toast.error("O bloqueador de pop-ups bloqueou a janela. Por favor, permita popups ou abra o aplicativo em uma nova aba usando o botão no topo direito.");
-                                 return;
+                              if (!token) {
+                                 throw new Error("Não foi possível obter o token de acesso de contatos do Google.");
                               }
 
-                              const handleMessage = async (event: MessageEvent) => {
-                                 if (event.data?.type !== 'GOOGLE_AUTH_SUCCESS' && event.data?.type !== 'GOOGLE_AUTH_ERROR') return;
-                                 if (event.data?.type === 'GOOGLE_AUTH_ERROR') {
-                                    setIsSyncingContacts(false);
-                                    toast.error("Erro ao autenticar: " + event.data.error);
-                                    window.removeEventListener('message', handleMessage);
-                                 } else if (event.data?.type === 'GOOGLE_AUTH_SUCCESS' && event.data.action === 'sync_contacts') {
-                                    window.removeEventListener('message', handleMessage);
-                                    try {
-                                       const res = await fetch("/api/contacts/sync", {
-                                           method: "POST",
-                                           headers: { "Content-Type": "application/json" },
-                                           body: JSON.stringify({ accessToken: event.data.accessToken })
-                                       });
-                                       
-                                       if (!res.ok) {
-                                          const errData = await res.json().catch(() => null);
-                                          let errMsg = "Erro ao sicronizar contatos na API";
-                                          if (errData && errData.error) {
-                                             const errDetails = typeof errData.error === 'string' ? errData.error : JSON.stringify(errData.error);
-                                             errMsg += ": " + errDetails;
-                                             if (errDetails.includes("403") || errDetails.includes("not enabled")) {
-                                                errMsg = "A API 'People API' não está ativada no seu Google Cloud Console. Por favor, ative-a.";
-                                             }
-                                          }
-                                          throw new Error(errMsg);
-                                       }
-                                       
-                                       const data = await res.json();
-                                       if (data && data.connections) {
-                                          let addedCount = 0;
-                                          for (const person of data.connections) {
-                                             const name = person.names?.[0]?.displayName || "";
-                                             const email = person.emailAddresses?.[0]?.value || "";
-                                             let phone = person.phoneNumbers?.[0]?.value || "";
-                                             
-                                             if (!name && !email && !phone) continue;
-                                             if (phone) phone = phone.replace(/[^0-9+]/g, '');
-                                             
-                                             const exists = contacts.find(c => (phone && c.phoneNumber === phone) || (email && c.email === email));
-                                             if (!exists) {
-                                                await addDoc(collection(db, "users", currentUser._id, "contacts"), {
-                                                    name: name || email || phone,
-                                                    phoneNumber: phone,
-                                                    email: email,
-                                                    registeredUserId: null, 
-                                                    createdAt: Date.now()
-                                                });
-                                                addedCount++;
-                                             }
-                                          }
-                                          toast.success(`${addedCount} contatos Google sincronizados com sucesso.`);
-                                       } else {
-                                          toast.error("Nenhum contato encontrado no Google.");
-                                       }
-                                    } catch (err: any) {
-                                       toast.error("Erro ao sincronizar: " + err.message);
-                                    } finally {
-                                       setIsSyncingContacts(false);
+                              const res = await fetch("https://people.googleapis.com/v1/people/me/connections?personFields=names,emailAddresses,phoneNumbers&pageSize=1000", {
+                                 headers: {
+                                    "Authorization": `Bearer ${token}`,
+                                    "Accept": "application/json"
+                                 }
+                              });
+                              
+                              if (!res.ok) {
+                                 const errData = await res.json().catch(() => null);
+                                 let errMsg = "Erro ao sicronizar contatos na API";
+                                 if (errData && errData.error) {
+                                    const errDetails = typeof errData.error === 'string' ? errData.error : JSON.stringify(errData.error);
+                                    errMsg += ": " + errDetails;
+                                    if (errDetails.includes("403") || errDetails.includes("not enabled")) {
+                                       errMsg = "A API 'People API' não está ativada no seu Google Cloud Console. Por favor, ative-a.";
                                     }
                                  }
-                              };
-                              window.addEventListener('message', handleMessage);
+                                 throw new Error(errMsg);
+                              }
+                              
+                              const data = await res.json();
+                              if (data && data.connections) {
+                                 let addedCount = 0;
+                                 for (const person of data.connections) {
+                                    const name = person.names?.[0]?.displayName || "";
+                                    const email = person.emailAddresses?.[0]?.value || "";
+                                    let phone = person.phoneNumbers?.[0]?.value || "";
+                                    
+                                    if (!name && !email && !phone) continue;
+                                    if (phone) phone = phone.replace(/[^0-9+]/g, '');
+                                    
+                                    const exists = contacts.find(c => (phone && c.phoneNumber === phone) || (email && c.email === email));
+                                    if (!exists) {
+                                       await addDoc(collection(db, "users", currentUser._id, "contacts"), {
+                                           name: name || email || phone,
+                                           phoneNumber: phone,
+                                           email: email,
+                                           registeredUserId: null, 
+                                           createdAt: Date.now()
+                                       });
+                                       addedCount++;
+                                    }
+                                 }
+                                 toast.success(`${addedCount} contatos Google sincronizados com sucesso.`);
+                              } else {
+                                 toast.error("Nenhum contato encontrado no Google.");
+                              }
 
                            } catch(e: any) {
                               toast.error("Erro ao iniciar sincronização: " + e.message);
