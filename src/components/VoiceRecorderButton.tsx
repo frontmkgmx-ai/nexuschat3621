@@ -83,7 +83,7 @@ export default function VoiceRecorderButton({ currentUser, conversation, scrollT
                 _creationTime: Date.now()
             };
             
-            await addDoc(collection(db, "messages"), newMsg);
+            await setDoc(doc(db, "messages", messageId), newMsg);
             
             await updateDoc(doc(db, "conversations", conversation._id), {
                 lastMessage: newMsg,

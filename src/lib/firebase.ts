@@ -1,6 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { getAnalytics } from "firebase/analytics";
-import { getFirestore } from "firebase/firestore";
+import { initializeFirestore } from "firebase/firestore";
 import { getDatabase } from "firebase/database";
 import { getAuth } from "firebase/auth";
 import { getMessaging, isSupported } from "firebase/messaging";
@@ -17,8 +17,20 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-export const analytics = getAnalytics(app);
-export const db = getFirestore(app);
+
+let isMockAnalytics = false;
+export const analytics = (() => {
+  try {
+     return getAnalytics(app);
+  } catch (e) {
+     isMockAnalytics = true;
+     return null as any;
+  }
+})();
+
+export const db = initializeFirestore(app, {
+  experimentalForceLongPolling: true,
+});
 export const rtdb = getDatabase(app);
 export const auth = getAuth(app);
 

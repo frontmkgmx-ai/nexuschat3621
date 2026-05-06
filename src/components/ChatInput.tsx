@@ -68,7 +68,9 @@ export default function ChatInput({
         return;
       }
 
+      const messageId = crypto.randomUUID();
       const newMsg = {
+        _id: messageId,
         conversationId: conversation._id,
         senderId: currentUser._id,
         text: currentText,
@@ -84,8 +86,8 @@ export default function ChatInput({
         } : {})
       };
       
-      const docRef = await addDoc(collection(db, "messages"), newMsg);
-      await updateDoc(doc(db, "messages", docRef.id), { status: "sent" });
+      await setDoc(doc(db, "messages", messageId), newMsg);
+      await updateDoc(doc(db, "messages", messageId), { status: "sent" });
       await updateDoc(doc(db, "conversations", conversation._id), {
         lastMessage: newMsg,
         updatedAt: Date.now()
@@ -128,7 +130,7 @@ export default function ChatInput({
               _creationTime: Date.now()
           };
           
-          const docRef = await addDoc(collection(db, "messages"), newMsg);
+          await setDoc(doc(db, "messages", messageId), newMsg);
           
           await updateDoc(doc(db, "conversations", conversation._id), {
               lastMessage: newMsg,

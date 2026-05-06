@@ -327,7 +327,7 @@ export default function ChatWindow({
          }
       }
 
-      const msgs = snapshot.docs.map(doc => ({ _id: doc.id, ...doc.data() })) as any[];
+      const msgs = snapshot.docs.map(doc => ({ ...doc.data(), _id: doc.id })) as any[];
       msgs.sort((a, b) => (a._creationTime || Number.MAX_SAFE_INTEGER) - (b._creationTime || Number.MAX_SAFE_INTEGER));
       
       // Filter out messages deleted localy (history cleared)
