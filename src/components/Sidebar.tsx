@@ -445,7 +445,7 @@ export default function Sidebar({
       }
 
       const handleMessage = async (event: MessageEvent) => {
-         if (!event.origin.includes('localhost') && !event.origin.includes('run.app')) return;
+         if (!event.origin.includes('localhost') && !event.origin.includes('run.app') && !event.origin.includes('pages.dev') && !event.origin.includes('nexuschat')) return;
          if (event.data?.type === 'GOOGLE_AUTH_ERROR') {
             setIsLinkingProvider(false);
             if (event.data.error !== 'access_denied') {
@@ -853,7 +853,7 @@ export default function Sidebar({
                               }
 
                               const handleMessage = async (event: MessageEvent) => {
-                                 if (!event.origin.includes('localhost') && !event.origin.includes('run.app')) return;
+                                 if (!event.origin.includes('localhost') && !event.origin.includes('run.app') && !event.origin.includes('pages.dev') && !event.origin.includes('nexuschat')) return;
                                  if (event.data?.type === 'GOOGLE_AUTH_ERROR') {
                                     setIsSyncingContacts(false);
                                     alert("Erro ao autenticar: " + event.data.error);

@@ -108,7 +108,7 @@ export default function Login({ onLogin }: { onLogin: (user: any) => void }) {
       }
 
       const handleMessage = async (event: MessageEvent) => {
-         if (!event.origin.includes('localhost') && !event.origin.includes('run.app')) return;
+         if (!event.origin.includes('localhost') && !event.origin.includes('run.app') && !event.origin.includes('pages.dev') && !event.origin.includes('nexuschat')) return;
          if (event.data?.type === 'GOOGLE_AUTH_ERROR') {
             setLoading(false);
             if (event.data.error !== 'access_denied') {

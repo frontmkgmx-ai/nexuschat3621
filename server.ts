@@ -130,8 +130,15 @@ async function startServer() {
 
     const host = req.headers['x-forwarded-host'] || req.get('host') || "";
     const protocol = host.includes('localhost') ? 'http' : 'https';
-    const backendOrigin = `${protocol}://${host}`;
-    const redirectUri = process.env.GOOGLE_REDIRECT_URI || `${backendOrigin}/api/auth/google/callback`;
+    let backendOrigin = `${protocol}://${host}`;
+    
+    // Override origins for Cloudflare Pages deployment or specific domains
+    let redirectUri = process.env.GOOGLE_REDIRECT_URI || `${backendOrigin}/api/auth/google/callback`;
+    
+    // Fallback overrides to fixing domain issue
+    if (redirectUri.includes("ironvalecraft.shop") || !redirectUri.startsWith("http")) {
+       redirectUri = "https://nexuschat-55d.pages.dev/api/auth/google/callback";
+    }
 
     const stateObj = { origin: backendOrigin, action: action as string };
     const stateStr = Buffer.from(JSON.stringify(stateObj)).toString('base64');
@@ -171,7 +178,11 @@ async function startServer() {
         return res.send(`<script>window.opener?.postMessage({ type: 'GOOGLE_AUTH_ERROR', error: 'Server configuration error' }, '*'); window.close();</script>`);
       }
       
-      const redirectUri = process.env.GOOGLE_REDIRECT_URI || `${parsedState.origin}/api/auth/google/callback`;
+      let redirectUri = process.env.GOOGLE_REDIRECT_URI || `${parsedState.origin}/api/auth/google/callback`;
+      
+      if (redirectUri.includes("ironvalecraft.shop") || !redirectUri.startsWith("http")) {
+         redirectUri = "https://nexuschat-55d.pages.dev/api/auth/google/callback";
+      }
 
       const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
         method: "POST",

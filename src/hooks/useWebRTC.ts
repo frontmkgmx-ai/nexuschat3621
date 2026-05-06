@@ -23,7 +23,6 @@ export function useWebRTC({ callId, userId, userName, isGroup }: UseWebRTCParams
   const connectSocket = useCallback(() => {
     if (socketRef.current) return;
     const newSocket = io(CALL_API_BASE || undefined, {
-      transports: ['websocket'],
       path: '/socket.io'
     });
 
