@@ -92,6 +92,10 @@ export default function ChatInput({
       });
       setReplyingTo?.(null);
       scrollToBottom(true);
+      
+      // Play send sound
+      import("../services/soundService").then(s => s.soundService.playSend());
+      
     } catch (e) {
       console.error(e);
       setText(currentText); // restore on fail
@@ -130,6 +134,9 @@ export default function ChatInput({
               lastMessage: newMsg,
               updatedAt: Date.now()
           });
+
+          // Play send sound
+          import("../services/soundService").then(s => s.soundService.playSend());
 
           scrollToBottom(true);
           resetRecording();

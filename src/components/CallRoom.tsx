@@ -204,6 +204,9 @@ export default function CallRoom({ currentUser, conversation, callType, onEndCal
           localVideoRef.current.srcObject = stream;
         }
         connectSocket();
+        
+        // Play enter sound
+        import("../services/soundService").then(s => s.soundService.playCallEnter());
       } catch (err: any) {
         console.error(err);
       }
@@ -212,6 +215,8 @@ export default function CallRoom({ currentUser, conversation, callType, onEndCal
 
     return () => {
       cleanup();
+      // Play leave sound
+      import("../services/soundService").then(s => s.soundService.playCallLeave());
     };
   }, [callId, callType, startLocalStream, connectSocket, cleanup, selectedMic, noiseSuppression, audioQuality]);
 
@@ -259,6 +264,9 @@ export default function CallRoom({ currentUser, conversation, callType, onEndCal
       setIsMuted(muted);
       if (muted) await controls.muteAudio();
       else await controls.unmuteAudio();
+      
+      // Play mute click
+      import("../services/soundService").then(s => s.soundService.playCallMute());
     }
   };
 

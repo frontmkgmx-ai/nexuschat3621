@@ -268,6 +268,11 @@ export default function ChatWindow({
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  const handleReplyMessage = (msg: any) => {
+    setReplyingTo(msg);
+    import("../services/soundService").then(s => s.soundService.playReply());
+  };
+
   // Sync initialConversation
   useEffect(() => {
     setConversation(initialConversation);
@@ -310,6 +315,18 @@ export default function ChatWindow({
     if (!conversation?._id) return;
     const q = query(collection(db, "messages"), where("conversationId", "==", conversation._id));
     const unsubscribe = onSnapshot(q, (snapshot) => {
+      let isAnyNew = false;
+      const changes = snapshot.docChanges();
+      for (const change of changes) {
+         if (change.type === 'added') {
+            const data = change.doc.data();
+            // If it's not our own message and it was created in the last 10 seconds
+            if (data.senderId !== currentUser._id && data._creationTime > Date.now() - 10000) {
+                isAnyNew = true;
+            }
+         }
+      }
+
       const msgs = snapshot.docs.map(doc => ({ _id: doc.id, ...doc.data() })) as any[];
       msgs.sort((a, b) => (a._creationTime || Number.MAX_SAFE_INTEGER) - (b._creationTime || Number.MAX_SAFE_INTEGER));
       
@@ -318,9 +335,20 @@ export default function ChatWindow({
       const filtered = msgs.filter(m => (m._creationTime || 0) > lastCleared);
       
       setMessages(filtered);
+
+      if (isAnyNew) {
+         import("../services/soundService").then(s => s.soundService.playReceive());
+         if (document.hidden) {
+            import("../services/fcm").then(fcm => {
+               fcm.showBrowserNotification("Nova mensagem", {
+                 body: `Você recebeu uma nova mensagem de um contato.`
+               });
+            });
+         }
+      }
     });
     return () => unsubscribe();
-  }, [conversation?._id, conversation?.lastClearedAt?.[currentUser._id]]);
+  }, [conversation?._id, conversation?.lastClearedAt?.[currentUser._id], currentUser._id]);
 
   const scrollToBottom = React.useCallback((instant = false) => {
     messagesEndRef.current?.scrollIntoView({ behavior: instant ? "auto" : "smooth" });
@@ -393,6 +421,7 @@ export default function ChatWindow({
       await updateDoc(doc(db, "messages", contextMenu.msg._id), {
         deletedFor: [currentUser._id]
       });
+      import("../services/soundService").then(s => s.soundService.playDelete());
     } catch(err) {
       console.error(err);
     }
@@ -408,6 +437,7 @@ export default function ChatWindow({
         type: "text",
         deletedAt: Date.now()
       });
+      import("../services/soundService").then(s => s.soundService.playDelete());
     } catch(err) {
       console.error(err);
     }
@@ -594,7 +624,7 @@ export default function ChatWindow({
         isOwnMessage={contextMenu.msg?.senderId === currentUser._id}
         position={contextMenu.position}
         onClose={() => setContextMenu(prev => ({...prev, isOpen: false}))}
-        onReply={() => setReplyingTo(contextMenu.msg)}
+        onReply={() => handleReplyMessage(contextMenu.msg)}
         onCopy={handleCopy}
         onDeleteForMe={handleDeleteForMe}
         onDeleteForEveryone={handleDeleteForEveryone}

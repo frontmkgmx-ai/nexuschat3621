@@ -5,9 +5,10 @@ import ChatWindow from "./components/ChatWindow";
 import Terms from "./components/Terms";
 import { rtdb, db, auth } from "./lib/firebase";
 import { ref, set, onDisconnect } from "firebase/database";
-import { doc, getDoc, setDoc, updateDoc, onSnapshot } from "firebase/firestore";
+import { doc, getDoc, setDoc, updateDoc, onSnapshot, collection, query, orderBy, limit } from "firebase/firestore";
+import { requestNotificationPermission, setupForegroundMessages, showBrowserNotification } from "./services/fcm";
 
-import { Toaster } from 'sonner';
+import { Toaster, toast } from 'sonner';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<any>(() => {
@@ -86,6 +87,11 @@ export default function App() {
         window.addEventListener("touchstart", resetIdleTimer);
         window.addEventListener("focus", setOnline);
         window.addEventListener("blur", setIdle);
+        
+        // FCM Initialization
+        requestNotificationPermission(currentUser._id).then(granted => {
+           if (granted) setupForegroundMessages();
+        });
       } catch(e) {
         console.error("Firebase auth error:", e);
         // Fallback: still show the UI even if realtime db/presence failed
@@ -95,6 +101,25 @@ export default function App() {
 
     setupFirebaseUser();
 
+    // Nexus Notifify Setup
+    const q = query(collection(db, "appUpdates"), orderBy("createdAt", "desc"), limit(1));
+    const unsubUpdates = onSnapshot(q, (snapshot) => {
+       snapshot.docChanges().forEach(change => {
+           if (change.type === "added") {
+              const data = change.doc.data();
+              // Prevent showing notification for very old data when first loading
+              if (data.createdAt && data.createdAt > Date.now() - 30000) {
+                 toast.success(`Nexus Notifify: Nova versão ${data.version}!`, {
+                    description: data.title
+                 });
+                 showBrowserNotification(`Nova versão do App: ${data.version}`, {
+                     body: data.title
+                 });
+              }
+           }
+       });
+    });
+
     const handleUnload = () => {
       // sessionStorage.removeItem("chat_user");
     };
@@ -103,8 +128,7 @@ export default function App() {
     return () => {
       clearTimeout(timeout);
       if (unsubscribeUser) unsubscribeUser();
-      // Removed event listeners will stay because of async closure issue generally, 
-      // but it's okay for this simplified flow.
+      unsubUpdates();
       window.removeEventListener("beforeunload", handleUnload);
     };
   }, [currentUser?._id]);
