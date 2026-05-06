@@ -3,6 +3,8 @@ import { createServer as createViteServer } from "vite";
 import path from "path";
 import { S3Client, PutObjectCommand, DeleteObjectCommand, ListObjectsV2Command } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { Server as SocketIOServer } from "socket.io";
+import { createServer as createHttpServer } from "http";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -21,6 +23,60 @@ const BUCKET_NAME = process.env.SUPABASE_S3_BUCKET || "chatgeral";
 async function startServer() {
   const app = express();
   const PORT = 3000;
+  const httpServer = createHttpServer(app);
+  
+  const io = new SocketIOServer(httpServer, {
+    cors: {
+      origin: "*",
+      methods: ["GET", "POST"]
+    }
+  });
+
+  io.on("connection", (socket) => {
+    socket.on("join-room", (data) => {
+      const { roomId, userId, displayName } = data;
+      socket.join(roomId);
+      socket.to(roomId).emit("participant-joined", { userId, displayName, participant: data });
+      
+      // Store userId in socket to handle disconnects gracefully
+      (socket as any).userId = userId;
+      (socket as any).roomId = roomId;
+    });
+
+    // Handle generic WebRTC signaling
+    socket.on("webrtc:offer", (data) => {
+      // data: { callId, targetId, sourceId, offer }
+      socket.to(data.callId).emit("webrtc:offer", data);
+    });
+
+    socket.on("webrtc-offer", (data) => {
+      socket.to(data.roomId).emit("webrtc-offer", data);
+    });
+
+    socket.on("webrtc:answer", (data) => {
+      socket.to(data.callId).emit("webrtc:answer", data);
+    });
+
+    socket.on("webrtc-answer", (data) => {
+      socket.to(data.roomId).emit("webrtc-answer", data);
+    });
+
+    socket.on("webrtc:ice-candidate", (data) => {
+      socket.to(data.callId).emit("webrtc:ice-candidate", data);
+    });
+
+    socket.on("webrtc-ice-candidate", (data) => {
+      socket.to(data.roomId).emit("webrtc-ice-candidate", data);
+    });
+
+    socket.on("disconnect", () => {
+      const userId = (socket as any).userId;
+      const roomId = (socket as any).roomId;
+      if (userId && roomId) {
+        socket.to(roomId).emit("participant-left", { userId });
+      }
+    });
+  });
 
   app.use(express.json());
 
@@ -202,7 +258,7 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
+  httpServer.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
   });
 }

@@ -1,4 +1,4 @@
-export const CALL_API_BASE = 'https://call.ironvalecraft.shop';
+export const CALL_API_BASE = '';
 
 const makeRequest = async (endpoint: string, method: 'GET' | 'POST' = 'GET', body?: any) => {
   const url = `${CALL_API_BASE}${endpoint}`;

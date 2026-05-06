@@ -101,7 +101,7 @@ const ParticipantView: React.FC<{ participant: any, isLocal?: boolean, volume?: 
       {!hasVideo && (
         <div className="absolute inset-0 flex items-center justify-center bg-[#111111] overflow-hidden">
           {participant.bannerUrl && (
-            <img src={sanitizeUrl(participant.bannerUrl)} alt="Background" className="absolute inset-0 w-full h-full object-cover opacity-[0.15] blur-[8px] scale-110 pointer-events-none" />
+            <img src={sanitizeUrl(participant.bannerUrl)} alt="Background" className="absolute inset-0 w-full h-full object-cover opacity-[0.25] blur-[8px] scale-110 pointer-events-none" />
           )}
           <div className="absolute inset-0 bg-gradient-to-t from-[#111111] via-transparent to-transparent opacity-80" />
           
@@ -441,11 +441,13 @@ export default function CallRoom({ currentUser, conversation, callType, onEndCal
         </div>
       </div>
 
-      <div className={`flex-1 w-full max-w-[1920px] mx-auto grid ${gridCols} ${gridRows} gap-4 sm:gap-6 px-4 pt-20 sm:pt-24 pb-32 sm:pb-36 overflow-hidden`}>
-        {remoteUsers.map((p, i) => (
-          <ParticipantView key={p.id} participant={p} volume={callVolume} />
-        ))}
-        <ParticipantView participant={localUser} isLocal={true} />
+      <div className={`flex-1 w-full mx-auto flex items-center justify-center pt-20 sm:pt-24 pb-32 sm:pb-36 px-4`}>
+        <div className={`w-full max-w-[1920px] h-full lg:w-[80%] lg:h-[80%] grid ${gridCols} ${gridRows} gap-4 sm:gap-6 overflow-hidden`}>
+          {remoteUsers.map((p, i) => (
+            <ParticipantView key={p.id} participant={p} volume={callVolume} />
+          ))}
+          <ParticipantView participant={localUser} isLocal={true} />
+        </div>
       </div>
 
       <div className="absolute bottom-6 sm:bottom-10 left-1/2 -translate-x-1/2 z-50">

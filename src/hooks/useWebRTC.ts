@@ -22,8 +22,9 @@ export function useWebRTC({ callId, userId, userName, isGroup }: UseWebRTCParams
 
   const connectSocket = useCallback(() => {
     if (socketRef.current) return;
-    const newSocket = io(CALL_API_BASE, {
+    const newSocket = io(CALL_API_BASE || undefined, {
       transports: ['websocket'],
+      path: '/socket.io'
     });
 
     socketRef.current = newSocket;
@@ -74,6 +75,7 @@ export function useWebRTC({ callId, userId, userName, isGroup }: UseWebRTCParams
         currentSocket.emit('webrtc-ice-candidate', {
           roomId: callId,
           targetUserId: targetId,
+          fromUserId: userId,
           candidate: event.candidate,
         });
       }
@@ -93,9 +95,12 @@ export function useWebRTC({ callId, userId, userName, isGroup }: UseWebRTCParams
     if (!socket) return;
 
     const handleOffer = async (data: any) => {
-      const targetId = data.sourceId || data.fromUserId; 
-      if (!targetId) return;
-      const pc = getOrCreatePeerConnection(targetId, socket);
+      if ((data.targetId && data.targetId !== userId) || (data.targetUserId && data.targetUserId !== userId)) {
+        return;
+      }
+      const remoteSourceId = data.sourceId || data.fromUserId; 
+      if (!remoteSourceId) return;
+      const pc = getOrCreatePeerConnection(remoteSourceId, socket);
       
       try {
         await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
@@ -104,13 +109,14 @@ export function useWebRTC({ callId, userId, userName, isGroup }: UseWebRTCParams
         
         socket.emit('webrtc:answer', {
           callId,
-          targetId,
+          targetId: remoteSourceId,
           sourceId: userId,
           answer,
         });
         socket.emit('webrtc-answer', {
           roomId: callId,
-          targetUserId: targetId,
+          targetUserId: remoteSourceId,
+          fromUserId: userId,
           answer,
         });
       } catch (err) {
@@ -119,9 +125,12 @@ export function useWebRTC({ callId, userId, userName, isGroup }: UseWebRTCParams
     };
 
     const handleAnswer = async (data: any) => {
-      const targetId = data.sourceId || data.fromUserId;
-      if (!targetId) return;
-      const pc = pcRef.current[targetId];
+      if ((data.targetId && data.targetId !== userId) || (data.targetUserId && data.targetUserId !== userId)) {
+        return;
+      }
+      const remoteSourceId = data.sourceId || data.fromUserId;
+      if (!remoteSourceId) return;
+      const pc = pcRef.current[remoteSourceId];
       if (pc) {
         try {
           await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
@@ -132,10 +141,13 @@ export function useWebRTC({ callId, userId, userName, isGroup }: UseWebRTCParams
     };
 
     const handleIceCandidate = async (data: any) => {
-      const targetId = data.sourceId || data.fromUserId;
+      if ((data.targetId && data.targetId !== userId) || (data.targetUserId && data.targetUserId !== userId)) {
+        return;
+      }
+      const remoteSourceId = data.sourceId || data.fromUserId;
       const candidate = data.candidate;
-      if (!targetId || !candidate) return;
-      const pc = pcRef.current[targetId];
+      if (!remoteSourceId || !candidate) return;
+      const pc = pcRef.current[remoteSourceId];
       if (pc) {
         try {
           await pc.addIceCandidate(new RTCIceCandidate(candidate));
