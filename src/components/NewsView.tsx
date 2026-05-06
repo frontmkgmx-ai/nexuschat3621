@@ -101,11 +101,24 @@ export default function NewsView() {
       className="flex flex-col h-full absolute inset-0 w-full pt-4 bg-[#111214]"
     >
       <div className="px-5 py-4 shrink-0 border-b border-[#2B2D31]">
-        <h2 className="text-2xl font-bold text-zinc-100 tracking-tight">Changelog <span className="text-sm font-normal text-zinc-500 bg-[#2B2D31] px-2 py-0.5 rounded-full">v1.1.15</span></h2>
+        <h2 className="text-2xl font-bold text-zinc-100 tracking-tight">Changelog <span className="text-sm font-normal text-zinc-500 bg-[#2B2D31] px-2 py-0.5 rounded-full">v1.1.16</span></h2>
         <p className="text-zinc-500 text-sm mt-1">Acompanhe as últimas melhorias e correções.</p>
       </div>
       
       <div className="flex-1 overflow-y-auto custom-scrollbar pb-20 px-5 pt-8 space-y-8">
+        <div className="relative pl-8 border-l border-[#2B2D31] group">
+          <div className="absolute -left-2 top-0 w-4 h-4 rounded-full bg-[#1e1f22] border-2 border-[#2B2D31] group-hover:border-indigo-500 transition-colors" />
+          <div className="flex items-center gap-2 mb-2 text-zinc-500 group-hover:text-indigo-400 transition-colors">
+            <Sparkles className="w-4 h-4" />
+            <h3 className="font-semibold text-zinc-200">Mensagens de Áudio</h3>
+          </div>
+          <p className="text-sm text-zinc-400 leading-relaxed max-w-2xl">
+            - Agora você pode enviar mensagens de voz facilmente! Basta pressionar ou segurar o botão de microfone novo adicionado no chat.
+            - Novo visual de gravação interativo com contador e pré-visualização para que você ouça seu áudio ou descarte antes de enviá-lo.
+            - Total suporte a plataformas mobile e desktop.
+            - Novo player imersivo integrado nas próprias mensagens com barra de progresso em tempo real e melhorias no desempenho do histórico do chat.
+          </p>
+        </div>
         <div className="relative pl-8 border-l border-[#2B2D31] group">
           <div className="absolute -left-2 top-0 w-4 h-4 rounded-full bg-[#1e1f22] border-2 border-[#2B2D31] group-hover:border-indigo-500 transition-colors" />
           <div className="flex items-center gap-2 mb-2 text-zinc-500 group-hover:text-indigo-400 transition-colors">

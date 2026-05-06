@@ -177,6 +177,59 @@ export async function mkdirFileApi(path: string) {
   return { success: true };
 }
 
+export function getVoiceMediaUrl(path: string) {
+  // TODO: Em um bucket privado, atualizar futuramente para usar createSignedUrl do Supabase.
+  // Atualmente o bucket é público, então usamos a url pública direta.
+  return getPublicFileUrl(path);
+}
+
+export async function uploadVoiceToStorage(conversationId: string, messageId: string, blob: Blob, onProgress?: (p: number) => void) {
+  const uuid = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+  // Extrutura pedida: voice-messages/{conversationId}/{messageId}/voice-{uuid}.webm
+  const path = `voice-messages/${conversationId}/${messageId}/voice-${uuid}.webm`;
+  
+  const fileType = blob.type || 'audio/webm;codecs=opus';
+  const file = new File([blob], `voice-${uuid}.webm`, { type: fileType });
+  
+  // Utilizando o backend existente de storage presign
+  const res = await fetch("/api/storage/presign", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ filename: path, contentType: file.type })
+  });
+  if (!res.ok) throw new Error("Falha ao obter URL de upload");
+  const { url } = await res.json();
+
+  await new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("PUT", url, true);
+      xhr.setRequestHeader("Content-Type", file.type);
+      xhr.setRequestHeader("Cache-Control", "public, max-age=31536000"); // cache longo
+      
+      if (onProgress) {
+          xhr.upload.onprogress = (e) => {
+              if (e.lengthComputable) {
+                  onProgress(Math.round((e.loaded / Math.max(e.total, 1)) * 100));
+              }
+          };
+      }
+      
+      xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+              resolve(null);
+          } else {
+              reject(new Error("Erro no upload do arquivo"));
+          }
+      };
+      xhr.onerror = () => reject(new Error("Erro de rede ao upar arquivo"));
+      xhr.send(file);
+  });
+
+  const publicUrl = getVoiceMediaUrl(path);
+
+  return { path, url: publicUrl, size: blob.size, mimeType: file.type };
+}
+
 // Remover um arquivo do bucket especificado
 export async function deleteFile(fileIdOrPath: string) {
   let file = fileIdOrPath;

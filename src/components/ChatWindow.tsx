@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { db } from "../lib/firebase";
 import { collection, query, where, onSnapshot, updateDoc, doc, writeBatch, addDoc } from "firebase/firestore";
 import MessageFilePreview from "./MessageFilePreview";
+import VoiceMessageBubble from "./VoiceMessageBubble";
 import { sanitizeUrl } from "../services/fileApi";
 import CallRoom from "./CallRoom";
 import ChatInput from "./ChatInput";
@@ -173,9 +174,11 @@ const MessageBubble = React.memo(({
                      <div className="bg-red-500/10 border border-red-500/20 p-3 rounded-xl flex items-center justify-between gap-4 mt-1">
                         <div className="flex flex-col">
                           <span className="text-red-400 text-sm font-semibold">Falha no envio</span>
-                          <span className="text-red-400/70 text-xs">Ocorreu um erro ao enviar este arquivo.</span>
+                          <span className="text-red-400/70 text-xs">Ocorreu um erro ao enviar.</span>
                         </div>
                      </div>
+                   ) : msg.type === "voice" ? (
+                     <VoiceMessageBubble mediaUrl={msg.mediaUrl} durationSeconds={msg.durationSeconds} isMine={isMine} />
                    ) : (
                      <MessageFilePreview message={msg} />
                    )}
