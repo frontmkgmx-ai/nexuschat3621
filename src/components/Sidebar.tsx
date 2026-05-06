@@ -444,50 +444,29 @@ export default function Sidebar({
   const handleLinkGoogle = async () => {
     setIsLinkingProvider(true);
     try {
-      const scope = "email profile";
-      const action = "link_google";
+      const provider = new GoogleAuthProvider();
+      const result = await signInWithPopup(auth, provider);
+      const userEmail = result.user.email;
+      const userId = result.user.uid;
       
-      const urlRes = await fetch(`${CALL_API_BASE}/api/auth/google/url?action=${action}&scope=${encodeURIComponent(scope)}`);
-      const { url } = await urlRes.json();
-      
-      const authWindow = window.open(url, "google_auth", "width=500,height=600");
-      if (!authWindow) {
-         setIsLinkingProvider(false);
-         toast.error("O bloqueador de pop-ups bloqueou a janela. Por favor, permita popups ou abra o aplicativo em uma nova aba usando o botão no topo direito.");
-         return;
+      try {
+        await updateDoc(doc(db, "users", currentUser._id), {
+          googleLinked: true,
+          googleEmail: userEmail,
+          googleUid: userId,
+        });
+        toast.success("Conta Google vinculada com sucesso!");
+      } catch (err: any) {
+        toast.error("Erro ao salvar vinculação no banco de dados.");
+        console.error(err);
+      } finally {
+        setIsLinkingProvider(false);
       }
-
-      const handleMessage = async (event: MessageEvent) => {
-         if (event.data?.type !== 'GOOGLE_AUTH_SUCCESS' && event.data?.type !== 'GOOGLE_AUTH_ERROR') return;
-         if (event.data?.type === 'GOOGLE_AUTH_ERROR') {
-            setIsLinkingProvider(false);
-            if (event.data.error !== 'access_denied') {
-               toast.error("Erro ao autenticar: " + event.data.error);
-            }
-            window.removeEventListener('message', handleMessage);
-         } else if (event.data?.type === 'GOOGLE_AUTH_SUCCESS' && event.data.action === 'link_google') {
-            window.removeEventListener('message', handleMessage);
-            const userEmail = event.data.user?.email;
-            const userId = event.data.user?.id;
-            
-            try {
-              await updateDoc(doc(db, "users", currentUser._id), {
-                googleLinked: true,
-                googleEmail: userEmail,
-                googleUid: userId,
-              });
-              toast.success("Conta Google vinculada com sucesso!");
-            } catch (err: any) {
-              toast.error("Erro ao salvar vinculação no banco de dados.");
-            } finally {
-              setIsLinkingProvider(false);
-            }
-         }
-      };
-      window.addEventListener('message', handleMessage);
     } catch (error: any) {
       console.error("Error linking Google:", error);
-      toast.error("Erro ao iniciar a vinculação com o Google.");
+      if (error.code !== 'auth/popup-closed-by-user') {
+        toast.error("Erro ao iniciar a vinculação com o Google.");
+      }
       setIsLinkingProvider(false);
     }
   };

@@ -6,6 +6,7 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { Server as SocketIOServer } from "socket.io";
 import { createServer as createHttpServer } from "http";
 import dotenv from "dotenv";
+import cors from "cors";
 
 dotenv.config();
 
@@ -22,6 +23,7 @@ const BUCKET_NAME = process.env.SUPABASE_S3_BUCKET || "chatgeral";
 
 async function startServer() {
   const app = express();
+  app.use(cors());
   const PORT = 3000;
   const httpServer = createHttpServer(app);
   

@@ -95,52 +95,60 @@ export default function Login({ onLogin }: { onLogin: (user: any) => void }) {
     setError("");
     setLoading(true);
     try {
-      const scope = "email profile";
-      const action = "login";
+      const provider = new GoogleAuthProvider();
+      const result = await signInWithPopup(auth, provider);
+      const userEmail = result.user.email;
       
-      const urlRes = await fetch(`${CALL_API_BASE}/api/auth/google/url?action=${action}&scope=${encodeURIComponent(scope)}`);
-      const { url } = await urlRes.json();
-      
-      const authWindow = window.open(url, "google_auth", "width=500,height=600");
-      if (!authWindow) {
-         setLoading(false);
-         setError("O bloqueador de pop-ups bloqueou a janela. Por favor, permita popups ou abra o aplicativo em uma nova aba usando o botão no canto superior direito.");
-         return;
+      // Check if trying to login to an existing linked account via the phone step
+      if (googleLinked && googleEmail) {
+        if (googleEmail === userEmail) {
+           setLoading(false);
+           proceedToProfile();
+        } else {
+           setLoading(false);
+           setError("O email retornado pelo Google não corresponde ao email vinculado a esta conta.");
+           await auth.signOut();
+        }
+      } else {
+        // Direct login via Google without phone check first
+        const q = query(collection(db, "users"), where("googleEmail", "==", userEmail));
+        const querySnapshot = await getDocs(q);
+        if (!querySnapshot.empty) {
+           const userDoc = querySnapshot.docs[0];
+           const userData = userDoc.data();
+           setUserId(userDoc.id);
+           setIsExistingProfile(true);
+           setUsername(userData.username || "");
+           setAvatarUrl(userData.avatarUrl || "");
+           setGoogleLinked(true);
+           setGoogleEmail(userData.googleEmail);
+           setLoading(false);
+           proceedToProfile();
+        } else {
+           const dummyId = result.user.uid;
+           setUserId(dummyId);
+           setIsExistingProfile(false);
+           setUsername(result.user.displayName || "");
+           setAvatarUrl(result.user.photoURL || "");
+           setGoogleLinked(true);
+           setGoogleEmail(userEmail);
+           setLoading(false);
+           proceedToProfile();
+        }
       }
-
-      const handleMessage = async (event: MessageEvent) => {
-         if (event.data?.type !== 'GOOGLE_AUTH_SUCCESS' && event.data?.type !== 'GOOGLE_AUTH_ERROR') return;
-         if (event.data?.type === 'GOOGLE_AUTH_ERROR') {
-            setLoading(false);
-            if (event.data.error !== 'access_denied') {
-               setError("Erro ao autenticar: " + event.data.error);
-            }
-            window.removeEventListener('message', handleMessage);
-         } else if (event.data?.type === 'GOOGLE_AUTH_SUCCESS' && event.data.action === 'login') {
-            window.removeEventListener('message', handleMessage);
-            const userEmail = event.data.user?.email;
-            
-            if (googleLinked && googleEmail === userEmail) {
-              setLoading(false);
-              proceedToProfile();
-            } else {
-              setLoading(false);
-              setError("O email retornado pelo Google não corresponde ao email vinculado a esta conta.");
-            }
-         }
-      };
-      window.addEventListener('message', handleMessage);
     } catch (e: any) {
       console.error(e);
-      setError("Erro ao iniciar autenticação com o Google.");
+      if (e.code !== 'auth/popup-closed-by-user') {
+        setError("Erro ao autenticar com o Google.");
+      }
       setLoading(false);
     }
   };
 
   const handleOtpSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (otp.length < 4) {
-      setError("Please enter a valid code.");
+    if (otp.length < 6) {
+      setError("Please enter a valid 6-digit code.");
       return;
     }
 
@@ -274,12 +282,14 @@ export default function Login({ onLogin }: { onLogin: (user: any) => void }) {
               <div className="flex justify-center">
                 <input
                   type="text"
+                  inputMode="numeric"
                   required
                   maxLength={6}
+                  pattern="\d*"
                   className="w-32 bg-transparent text-center text-2xl tracking-widest border-b-2 border-zinc-700 py-2 outline-none focus:border-indigo-500 text-indigo-400 transition-colors"
                   placeholder="- - - - - -"
                   value={otp}
-                  onChange={(e) => setOtp(e.target.value)}
+                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
                 />
               </div>
 
@@ -289,7 +299,7 @@ export default function Login({ onLogin }: { onLogin: (user: any) => void }) {
 
               <button
                 type="submit"
-                disabled={loading || otp.length < 4}
+                disabled={loading || otp.length < 6}
                 className="w-full bg-indigo-600 text-white py-3 px-4 rounded-xl font-medium hover:bg-indigo-500 transition-all shadow-[0_0_20px_rgba(99,102,241,0.3)] disabled:opacity-50 font-display mt-2"
               >
                 {loading ? "Verifying..." : "Verify"}

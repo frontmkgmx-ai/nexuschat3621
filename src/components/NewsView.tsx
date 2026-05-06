@@ -101,11 +101,23 @@ export default function NewsView() {
       className="flex flex-col h-full absolute inset-0 w-full pt-4 bg-[#111214]"
     >
       <div className="px-5 py-4 shrink-0 border-b border-[#2B2D31]">
-        <h2 className="text-2xl font-bold text-zinc-100 tracking-tight">Changelog <span className="text-sm font-normal text-zinc-500 bg-[#2B2D31] px-2 py-0.5 rounded-full">v1.1.13</span></h2>
+        <h2 className="text-2xl font-bold text-zinc-100 tracking-tight">Changelog <span className="text-sm font-normal text-zinc-500 bg-[#2B2D31] px-2 py-0.5 rounded-full">v1.1.14</span></h2>
         <p className="text-zinc-500 text-sm mt-1">Acompanhe as últimas melhorias e correções.</p>
       </div>
       
       <div className="flex-1 overflow-y-auto custom-scrollbar pb-20 px-5 pt-8 space-y-8">
+        <div className="relative pl-8 border-l border-[#2B2D31] group">
+          <div className="absolute -left-2 top-0 w-4 h-4 rounded-full bg-[#1e1f22] border-2 border-[#2B2D31] group-hover:border-indigo-500 transition-colors" />
+          <div className="flex items-center gap-2 mb-2 text-zinc-500 group-hover:text-indigo-400 transition-colors">
+            <Sparkles className="w-4 h-4" />
+            <h3 className="font-semibold text-zinc-200">Melhorias na Autenticação e Experiência de Login</h3>
+          </div>
+          <p className="text-sm text-zinc-400 leading-relaxed max-w-2xl">
+            - Migramos completamente a vinculação e a inicialização de contas do Google a partir do Login e das Configurações do perfil para o ecossistema rápido e seguro do Google Firebase Auth, garantindo que não há mais problemas de janelas pop-up cortadas ou falhas de redirecionamento durante a vinculação, operando perfeitamente e consistentemente em ambiente de produção.
+            - Consertamos a validação de segurança do código de acesso na inicialização de login, fixando em exatos 6 dígitos estritamente estruturados como números e ativando automaticamente o teclado numérico de dispositivos móveis, prevenindo possíveis falhas de simulação.
+            - O carregamento da sincronização dos contatos do Google permanece isolado na chave de autorização robusta original providenciando mais segurança com os dados importados.
+          </p>
+        </div>
         <div className="relative pl-8 border-l border-[#2B2D31] group">
           <div className="absolute -left-2 top-0 w-4 h-4 rounded-full bg-[#1e1f22] border-2 border-[#2B2D31] group-hover:border-indigo-500 transition-colors" />
           <div className="flex items-center gap-2 mb-2 text-zinc-500 group-hover:text-indigo-400 transition-colors">
