@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Download, Share2, ZoomIn } from 'lucide-react';
 import { sanitizeUrl } from '../services/fileApi';
+import CustomVideoPlayer from './CustomVideoPlayer';
 
 export default function MediaViewerModal({
   isOpen,
@@ -77,16 +78,7 @@ export default function MediaViewerModal({
                   onClick={(e) => e.stopPropagation()}
                />
             ) : (
-              <motion.video
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={{ type: "spring", damping: 25, stiffness: 300 }}
-                src={sanitizeUrl(mediaUrl)}
-                controls
-                autoPlay
-                className="w-full h-full max-w-[100vw] max-h-[100vh] object-contain pointer-events-auto"
-                onClick={(e) => e.stopPropagation()}
-              />
+                <CustomVideoPlayer src={sanitizeUrl(mediaUrl)} fileName={fileName} autoPlay={true} />
             )
           ) : <div className="text-white">Media unavailable</div>}
         </div>

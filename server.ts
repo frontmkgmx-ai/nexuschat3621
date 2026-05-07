@@ -7,7 +7,6 @@ import { Server as SocketIOServer } from "socket.io";
 import { createServer as createHttpServer } from "http";
 import dotenv from "dotenv";
 import cors from "cors";
-import { Readable } from "stream";
 
 dotenv.config();
 
@@ -255,71 +254,6 @@ async function startServer() {
       console.error("/api/contacts/sync Error:", e);
       res.status(500).json({ error: e.message });
     }
-  });
-
-  const SECRET_KEY = "chat-secret-key-123";
-
-  function decryptUrlSync(encodedText: string) {
-      let result = '';
-      let base64 = encodedText.replace(/-/g, '+').replace(/_/g, '/');
-      while (base64.length % 4) {
-          base64 += '=';
-      }
-      const text = Buffer.from(base64, 'base64').toString('binary');
-      for (let i = 0; i < text.length; i++) {
-          result += String.fromCharCode(text.charCodeAt(i) ^ SECRET_KEY.charCodeAt(i % SECRET_KEY.length));
-      }
-      return result;
-  }
-
-  app.get('/api/media/:token', async (req, res) => {
-      try {
-          const token = req.params.token;
-          const realUrl = decryptUrlSync(token);
-          
-          if (!realUrl.startsWith('http://') && !realUrl.startsWith('https://')) {
-              return res.status(400).end();
-          }
-
-          const fetchOptions: any = {};
-          if (req.headers.range) {
-              fetchOptions.headers = { Range: req.headers.range };
-          }
-          
-          const response = await fetch(realUrl, fetchOptions);
-          
-          if (!response.ok) {
-              return res.status(response.status).end();
-          }
-          
-          const allowedHeaders = ['content-type', 'content-length', 'content-range', 'accept-ranges', 'cache-control', 'etag', 'last-modified'];
-          response.headers.forEach((value, name) => {
-              if (allowedHeaders.includes(name.toLowerCase())) {
-                  res.setHeader(name, value);
-              }
-          });
-          
-          res.status(response.status);
-          
-          if (response.body) {
-              Readable.fromWeb(response.body).pipe(res);
-          } else {
-              res.end();
-          }
-      } catch (e: any) {
-          if (e.cause && e.cause.code === 'ENOTFOUND') {
-              // Silently ignore dead domains from old messages
-              res.status(404).end();
-          } else {
-              console.error("Media proxy error:", e.message || e);
-              res.status(500).end();
-          }
-      }
-  });
-
-  // Media and calls API placeholders
-  app.all(["/api/calls/*", "/api/tests/*", "/api/devices/*", "/api/rooms/*", "/api/webrtc/*", "/api/logs/*", "/api/users/*", "/api/recordings/*", "/api/admin/*"], (req, res) => {
-    res.json({ success: true, message: "Handled by backend middleware" });
   });
 
   // Vite middleware for development

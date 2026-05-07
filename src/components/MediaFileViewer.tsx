@@ -1,5 +1,6 @@
 import React from 'react';
-import { getPublicFileUrl, getEmbedFileUrl } from '../services/fileApi';
+import { getPublicFileUrl, getEmbedFileUrl, sanitizeUrl } from '../services/fileApi';
+import CustomVideoPlayer from './CustomVideoPlayer';
 
 interface MediaFileViewerProps {
   path: string;
@@ -15,7 +16,7 @@ export const MediaFileViewer: React.FC<MediaFileViewerProps> = ({ path, type, na
       <div className="relative w-full aspect-video rounded-lg overflow-hidden flex items-center justify-center bg-black group shadow-[0_0_30px_rgba(0,0,0,0.5)]">
         {/* Cinematic blurry background */}
         <video 
-          src={getPublicFileUrl(path)} 
+          src={sanitizeUrl(getPublicFileUrl(path))} 
           className="absolute inset-0 w-full h-full object-cover blur-3xl opacity-60 scale-125 pointer-events-none transition-opacity duration-700 mix-blend-screen"
           autoPlay 
           muted 
@@ -24,14 +25,9 @@ export const MediaFileViewer: React.FC<MediaFileViewerProps> = ({ path, type, na
         />
         <div className="absolute inset-0 bg-black/40 pointer-events-none mix-blend-overlay"></div>
         {/* Main Player */}
-        <video
-          src={getPublicFileUrl(path)}
-          controls
-          controlsList="nodownload"
-          className="relative z-10 w-full h-full outline-none"
-          playsInline
-          preload="metadata"
-        />
+        <div className="relative z-10 w-full h-full outline-none" onClick={(e) => e.stopPropagation()}>
+          <CustomVideoPlayer src={sanitizeUrl(getPublicFileUrl(path))} fileName={name} />
+        </div>
       </div>
     );
   }
@@ -39,7 +35,7 @@ export const MediaFileViewer: React.FC<MediaFileViewerProps> = ({ path, type, na
   if (type === 'image') {
     return (
       <img
-        src={getPublicFileUrl(path)}
+        src={sanitizeUrl(getPublicFileUrl(path))}
         alt={name}
         className="max-w-full max-h-[500px] object-contain rounded-lg shadow-sm"
         loading="lazy"
