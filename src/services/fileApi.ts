@@ -41,9 +41,22 @@ export function getDownloadFileUrl(path: string) {
   return getPublicFileUrl(path);
 }
 
+const SECRET_KEY = "chat-secret-key-123";
+
+function encryptUrlSync(text: string) {
+    let result = '';
+    for (let i = 0; i < text.length; i++) {
+        result += String.fromCharCode(text.charCodeAt(i) ^ SECRET_KEY.charCodeAt(i % SECRET_KEY.length));
+    }
+    return btoa(result).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+}
+
 export function sanitizeUrl(url: string | null | undefined): string {
   if (!url) return "";
-  return url;
+  if (url.startsWith('/api/media/')) return url;
+  if (url.startsWith('data:')) return url; // Don't touch data URIs
+  // Obfuscate and use backend proxy
+  return `/api/media/${encryptUrlSync(url)}`;
 }
 
 interface UploadFileParams {
