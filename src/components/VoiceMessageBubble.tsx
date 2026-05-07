@@ -1,6 +1,11 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { Play, Pause } from 'lucide-react';
-import { formatDuration } from '../hooks/useVoiceRecorder';
+
+export function formatDuration(seconds: number): string {
+    const min = Math.floor(seconds / 60);
+    const sec = Math.floor(seconds % 60);
+    return `${min}:${sec.toString().padStart(2, '0')}`;
+}
 
 interface VoiceMessageBubbleProps {
     mediaUrl: string;

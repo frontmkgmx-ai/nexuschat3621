@@ -101,11 +101,58 @@ export default function NewsView() {
       className="flex flex-col h-full absolute inset-0 w-full pt-4 bg-[#111214]"
     >
       <div className="px-5 py-4 shrink-0 border-b border-[#2B2D31]">
-        <h2 className="text-2xl font-bold text-zinc-100 tracking-tight">Changelog <span className="text-sm font-normal text-zinc-500 bg-[#2B2D31] px-2 py-0.5 rounded-full">v1.1.21</span></h2>
+        <h2 className="text-2xl font-bold text-zinc-100 tracking-tight">Changelog <span className="text-sm font-normal text-zinc-500 bg-[#2B2D31] px-2 py-0.5 rounded-full">v1.1.25</span></h2>
         <p className="text-zinc-500 text-sm mt-1">Acompanhe as últimas melhorias e correções.</p>
       </div>
       
       <div className="flex-1 overflow-y-auto custom-scrollbar pb-20 px-5 pt-8 space-y-8">
+        <div className="relative pl-8 border-l border-[#2B2D31] group">
+          <div className="absolute -left-2 top-0 w-4 h-4 rounded-full bg-[#1e1f22] border-2 border-[#2B2D31] group-hover:border-indigo-500 transition-colors" />
+          <div className="flex items-center gap-2 mb-2 text-zinc-500 group-hover:text-indigo-400 transition-colors">
+            <Sparkles className="w-4 h-4" />
+            <h3 className="font-semibold text-zinc-200">Reestruturação do Backend para Chamadas (Call API)</h3>
+          </div>
+          <p className="text-sm text-zinc-400 leading-relaxed max-w-2xl">
+            - <strong>Mover Chamadas API (Call API) para o Backend:</strong> Migramos toda as estruturas da 'Call API' para o ambiente nativo backend! O Node.js/Express agora suporta e trata as mais de 100 requisições (testes de gravação, dispositivos, qualidade de tela e manipulação de salas WEBRTC) que anteriormente estavam isoladas, parando os avisos falsos de `404` do frontend de vez e fornecendo muito mais potencial para escalabilidade nativa.
+          </p>
+        </div>
+
+        <div className="relative pl-8 border-l border-[#2B2D31] group">
+          <div className="absolute -left-2 top-0 w-4 h-4 rounded-full bg-[#1e1f22] border-2 border-[#2B2D31] group-hover:border-indigo-500 transition-colors" />
+          <div className="flex items-center gap-2 mb-2 text-zinc-500 group-hover:text-indigo-400 transition-colors">
+            <Sparkles className="w-4 h-4" />
+            <h3 className="font-semibold text-zinc-200">Aprimoramento nas Chamadas Em Grupo / 1v1</h3>
+          </div>
+          <p className="text-sm text-zinc-400 leading-relaxed max-w-2xl">
+            - <strong>Bloqueio de Múltiplas Chamadas:</strong> Agora, ao iniciar uma ligação em um chat, o outro usuário não pode iniciar uma nova até que a atual seja encerrada; ele será redirecionado automaticamente para entrar na chamada ativa.
+            - <strong>Status de Chamada Integrado:</strong> Apenas mensagens de ligação ativas poderão ser "entradas". Identificadores mostrarão explicitamente <em>"Chamada Encerrada"</em> quando todos os participantes tiverem saído da ligação, prevenindo mensagens confusas de entrar em ligações inativas.
+          </p>
+        </div>
+
+        <div className="relative pl-8 border-l border-[#2B2D31] group">
+          <div className="absolute -left-2 top-0 w-4 h-4 rounded-full bg-[#1e1f22] border-2 border-[#2B2D31] group-hover:border-indigo-500 transition-colors" />
+          <div className="flex items-center gap-2 mb-2 text-zinc-500 group-hover:text-indigo-400 transition-colors">
+            <Sparkles className="w-4 h-4" />
+            <h3 className="font-semibold text-zinc-200">Limpeza e Otimização do Aplicativo</h3>
+          </div>
+          <p className="text-sm text-zinc-400 leading-relaxed max-w-2xl">
+            - <strong>Remoção da Gravação de Voz:</strong> O recurso de gravação nativa de voz foi retirado do chat de mensagens com intuito de simplificar o fluxo de conversas em texto e otimizar componentes do sistema.
+          </p>
+        </div>
+
+        <div className="relative pl-8 border-l border-[#2B2D31] group">
+          <div className="absolute -left-2 top-0 w-4 h-4 rounded-full bg-[#1e1f22] border-2 border-[#2B2D31] group-hover:border-indigo-500 transition-colors" />
+          <div className="flex items-center gap-2 mb-2 text-zinc-500 group-hover:text-indigo-400 transition-colors">
+            <Sparkles className="w-4 h-4" />
+            <h3 className="font-semibold text-zinc-200">Comunicação em Tempo Real Máxima</h3>
+          </div>
+          <p className="text-sm text-zinc-400 leading-relaxed max-w-2xl">
+            - <strong>Entrega Global (Delivered):</strong> Implementamos hooks silenciosos para exibir a confirmação de entrega imediata no app inteiro mesmo que o usuário esteja navegando em outras telas.
+            - <strong>Status de Digitação (RTDB):</strong> Visualização instantânea na Sidebar e no ChatWindow enquanto os contatos enviam mensagens (estilo "Digitando..."), proporcionando ritmo de conversa ao vivo e responsivo.
+            - <strong>Múltiplos Sincronismos:</strong> O painel esquerdo atualiza as pré-visualizações perfeitamente com todas as métricas unificadas em tempo real pelas capacidades avançadas da Firebase.
+          </p>
+        </div>
+
         <div className="relative pl-8 border-l border-[#2B2D31] group">
           <div className="absolute -left-2 top-0 w-4 h-4 rounded-full bg-[#1e1f22] border-2 border-[#2B2D31] group-hover:border-indigo-500 transition-colors" />
           <div className="flex items-center gap-2 mb-2 text-zinc-500 group-hover:text-indigo-400 transition-colors">

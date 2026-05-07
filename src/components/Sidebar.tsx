@@ -35,8 +35,9 @@ import {
 import { format } from "date-fns";
 import { parsePhoneNumber, getCountryCallingCode, CountryCode, getCountries } from "libphonenumber-js";
 import { AnimatePresence, motion } from "motion/react";
-import { db, auth } from "../lib/firebase";
+import { db, auth, rtdb } from "../lib/firebase";
 import { collection, query, where, onSnapshot, getDocs, doc, setDoc, updateDoc, serverTimestamp, addDoc, getDoc, writeBatch } from "firebase/firestore";
+import { ref as dbRef, onValue } from "firebase/database";
 import { CALL_API_BASE } from "../services/callApi";
 import { GoogleAuthProvider, linkWithPopup, unlink, signInWithPopup } from "firebase/auth";
 import { uploadProfilePhoto, sanitizeUrl } from "../services/fileApi";
@@ -180,6 +181,7 @@ export default function Sidebar({
   const [myConvos, setMyConvos] = useState<any[]>([]);
   const [usersInfo, setUsersInfo] = useState<{[key: string]: any}>({});
   const [savedContacts, setSavedContacts] = useState<any[]>([]);
+  const [typingUsers, setTypingUsers] = useState<{[convoId: string]: boolean}>({});
 
   useEffect(() => {
     // Listen to conversations
@@ -194,6 +196,67 @@ export default function Sidebar({
     });
     return () => unsubscribe();
   }, [currentUser._id]);
+
+  useEffect(() => {
+    if (myConvos.length === 0) return;
+    const processDelivery = async () => {
+      myConvos.forEach(async (convo) => {
+        if (
+          convo.lastMessage && 
+          convo.lastMessage.senderId !== currentUser._id && 
+          convo.lastMessage.status === "sent"
+        ) {
+          const qMsgs = query(
+            collection(db, "messages"),
+            where("conversationId", "==", convo._id),
+            where("status", "==", "sent")
+          );
+          const qSnap = await getDocs(qMsgs);
+          if (!qSnap.empty) {
+            const batch = writeBatch(db);
+            let hasUpdates = false;
+            qSnap.forEach(d => {
+               if (d.data().senderId !== currentUser._id) {
+                 batch.update(d.ref, { status: "delivered" });
+                 hasUpdates = true;
+               }
+            });
+            if (hasUpdates) {
+               await batch.commit();
+               await updateDoc(doc(db, "conversations", convo._id), {
+                 "lastMessage.status": "delivered"
+               }).catch(() => {});
+            }
+          }
+        }
+      });
+    };
+    processDelivery();
+  }, [myConvos, currentUser._id]);
+
+  // Read typing status for all active conversations
+  useEffect(() => {
+    if (myConvos.length === 0) return;
+    const unsubs: (() => void)[] = [];
+    myConvos.forEach(convo => {
+      if (document.hidden) return; // Don't subscribe to typing if tab isn't open? No, let's just listen.
+      const typingRef = dbRef(rtdb, `conversations/${convo._id}/typing`);
+      const unsub = onValue(typingRef, (snapshot) => {
+         const val = snapshot.val();
+         let isTyping = false;
+         if (val) {
+            Object.keys(val).forEach(k => {
+               if (k !== currentUser._id && val[k] === true) {
+                 isTyping = true;
+               }
+            });
+         }
+         setTypingUsers(prev => ({...prev, [convo._id]: isTyping}));
+      });
+      unsubs.push(() => unsub());
+    });
+    return () => unsubs.forEach(u => u());
+  }, [myConvos.map(c => c._id).join(','), currentUser._id]);
 
   useEffect(() => {
     // Listen to all users involved in conversations
@@ -741,18 +804,24 @@ export default function Sidebar({
                           )}
                         </div>
                         <div className="flex items-center text-sm text-zinc-400">
-                          {convo.lastMessage?.senderId === currentUser._id && (
-                            <span className="mr-1.5 flex-shrink-0">
-                              {convo.lastMessage.status === "read" ? (
-                                <CheckCheck className="w-4 h-4 text-indigo-400" />
-                              ) : convo.lastMessage.status === "delivered" ? (
-                                <CheckCheck className="w-4 h-4 text-zinc-500" />
-                              ) : (
-                                <Check className="w-4 h-4 text-zinc-500" />
+                          {typingUsers[convo._id] ? (
+                             <span className="text-indigo-400 font-medium italic animate-pulse">Digitando...</span>
+                          ) : (
+                             <>
+                              {convo.lastMessage?.senderId === currentUser._id && (
+                                <span className="mr-1.5 flex-shrink-0">
+                                  {convo.lastMessage.status === "read" ? (
+                                    <CheckCheck className="w-4 h-4 text-indigo-400" />
+                                  ) : convo.lastMessage.status === "delivered" ? (
+                                    <CheckCheck className="w-4 h-4 text-zinc-500" />
+                                  ) : (
+                                    <Check className="w-4 h-4 text-zinc-500" />
+                                  )}
+                                </span>
                               )}
-                            </span>
+                              <span className="truncate">{convo.lastMessage?.type === 'image' ? '📸 Imagem' : convo.lastMessage?.type === 'video' ? '🎬 Vídeo' : convo.lastMessage?.type === 'audio' || convo.lastMessage?.type === 'voice' ? '🎵 Áudio' : convo.lastMessage?.type === 'document' ? '📄 Documento' : convo.lastMessage?.text || "Sem mensagens"}</span>
+                             </>
                           )}
-                          <span className="truncate">{convo.lastMessage?.text || "Sem mensagens"}</span>
                         </div>
                       </div>
                     </motion.div>

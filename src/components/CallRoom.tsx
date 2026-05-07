@@ -4,6 +4,8 @@ import { PhoneOff, Mic, MicOff, Camera, CameraOff, MonitorUp, ChevronDown, Volum
 import { useWebRTC } from '../hooks/useWebRTC';
 import { useCallControls } from '../hooks/useCallControls';
 import { sanitizeUrl } from '../services/fileApi';
+import { db, rtdb } from '../lib/firebase';
+import { ref as dbRef, set, onDisconnect } from 'firebase/database';
 
 interface CallRoomProps {
   currentUser: any;
@@ -213,12 +215,17 @@ export default function CallRoom({ currentUser, conversation, callType, onEndCal
     };
     init();
 
+    const myCallRef = dbRef(rtdb, `conversations/${callId}/callStatus/participants/${currentUser._id}`);
+    set(myCallRef, true);
+    onDisconnect(myCallRef).remove();
+
     return () => {
       cleanup();
+      set(myCallRef, null);
       // Play leave sound
       import("../services/soundService").then(s => s.soundService.playCallLeave());
     };
-  }, [callId, callType, startLocalStream, connectSocket, cleanup, selectedMic, noiseSuppression, audioQuality]);
+  }, [callId, callType, startLocalStream, connectSocket, cleanup, selectedMic, noiseSuppression, audioQuality, currentUser._id]);
 
   useEffect(() => {
     // Quality monitor

@@ -256,6 +256,11 @@ async function startServer() {
     }
   });
 
+  // Media and calls API placeholders
+  app.all(["/api/calls/*", "/api/tests/*", "/api/devices/*", "/api/rooms/*", "/api/webrtc/*", "/api/logs/*", "/api/users/*", "/api/recordings/*", "/api/admin/*"], (req, res) => {
+    res.json({ success: true, message: "Handled by backend middleware" });
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({

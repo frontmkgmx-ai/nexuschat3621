@@ -2,8 +2,9 @@ import React, { useState, useEffect, useRef } from "react";
 import { Search, MoreVertical, Check, CheckCheck, ArrowLeft, Phone, Video, MonitorUp, PhoneOff, Mic, MicOff, Camera, CameraOff } from "lucide-react";
 import { format } from "date-fns";
 import { motion, AnimatePresence } from "motion/react";
-import { db } from "../lib/firebase";
+import { db, rtdb } from "../lib/firebase";
 import { collection, query, where, onSnapshot, updateDoc, doc, writeBatch, addDoc } from "firebase/firestore";
+import { ref as dbRef, onValue } from "firebase/database";
 import MessageFilePreview from "./MessageFilePreview";
 import VoiceMessageBubble from "./VoiceMessageBubble";
 import { sanitizeUrl } from "../services/fileApi";
@@ -28,7 +29,8 @@ const MessageBubble = React.memo(({
   onContextMenu,
   currentUser,
   theme,
-  onJoinCall
+  onJoinCall,
+  isCallActive
 }: { 
   msg: any, 
   isMine: boolean, 
@@ -37,7 +39,8 @@ const MessageBubble = React.memo(({
   onContextMenu: (e: React.PointerEvent | React.MouseEvent, msg: any) => void,
   currentUser: any,
   theme?: string,
-  onJoinCall?: (type: 'audio' | 'video') => void
+  onJoinCall?: (type: 'audio' | 'video') => void,
+  isCallActive?: boolean
 }) => {
   const getBubbleStyle = (isMine: boolean, theme?: string) => {
     if (theme === 'blue') {
@@ -146,13 +149,22 @@ const MessageBubble = React.memo(({
                   </div>
                 </div>
                 {onJoinCall && (
-                  <button 
-                    onClick={() => onJoinCall(msg.callType || 'audio')}
-                    className={`w-full py-2.5 px-4 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all ${msg.callType === 'video' ? 'bg-indigo-500 hover:bg-indigo-600' : 'bg-green-500 hover:bg-green-600'} text-white shadow-lg shadow-black/20`}
-                  >
-                    {msg.callType === 'video' ? <Video className="w-4 h-4" /> : <Phone className="w-4 h-4" />}
-                    Entrar na Chamada
-                  </button>
+                  isCallActive ? (
+                    <button 
+                      onClick={() => onJoinCall(msg.callType || 'audio')}
+                      className={`w-full py-2.5 px-4 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all ${msg.callType === 'video' ? 'bg-indigo-500 hover:bg-indigo-600' : 'bg-green-500 hover:bg-green-600'} text-white shadow-lg shadow-black/20`}
+                    >
+                      {msg.callType === 'video' ? <Video className="w-4 h-4" /> : <Phone className="w-4 h-4" />}
+                      Entrar na Chamada
+                    </button>
+                  ) : (
+                    <button 
+                      disabled
+                      className="w-full py-2.5 px-4 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all bg-zinc-800 text-zinc-500 cursor-not-allowed border border-white/5"
+                    >
+                      Chamada Encerrada
+                    </button>
+                  )
                 )}
               </div>
             )}
@@ -265,8 +277,46 @@ export default function ChatWindow({
   const [replyingTo, setReplyingTo] = useState<any>(null);
   const [editingMsg, setEditingMsg] = useState<any>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);
+  const [activeCallParticipants, setActiveCallParticipants] = useState<string[]>([]);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!conversation?._id) {
+       setIsTyping(false);
+       setActiveCallParticipants([]);
+       return;
+    }
+    const typingRef = dbRef(rtdb, `conversations/${conversation._id}/typing`);
+    const unsubTyping = onValue(typingRef, (snapshot) => {
+       const val = snapshot.val();
+       let typing = false;
+       if (val) {
+          Object.keys(val).forEach(k => {
+             if (k !== currentUser._id && val[k] === true) {
+                typing = true;
+             }
+          });
+       }
+       setIsTyping(typing);
+    });
+
+    const callRef = dbRef(rtdb, `conversations/${conversation._id}/callStatus/participants`);
+    const unsubCall = onValue(callRef, (snapshot) => {
+       const val = snapshot.val();
+       if (val) {
+         setActiveCallParticipants(Object.keys(val));
+       } else {
+         setActiveCallParticipants([]);
+       }
+    });
+
+    return () => {
+      unsubTyping();
+      unsubCall();
+    }
+  }, [conversation?._id, currentUser._id]);
 
   const handleReplyMessage = (msg: any) => {
     setReplyingTo(msg);
@@ -370,6 +420,12 @@ export default function ChatWindow({
     }
   }, [messages, conversation, currentUser._id]);
 
+  useEffect(() => {
+    if (isTyping) {
+      scrollToBottom();
+    }
+  }, [isTyping, scrollToBottom]);
+
   const handleContextMenu = (e: React.PointerEvent | React.MouseEvent, msg: any) => {
     let clientX, clientY;
     
@@ -464,7 +520,15 @@ export default function ChatWindow({
     }
   };
 
+  const isCallActive = activeCallParticipants.length > 0;
+
   const handleStartCall = async (type: 'audio' | 'video') => {
+    // Se a chamada já estiver ativa, apenas entra na chamada existente
+    if (isCallActive) {
+      setCallType(type);
+      return;
+    }
+
     setCallType(type);
     try {
       const newMsg = {
@@ -600,10 +664,27 @@ export default function ChatWindow({
                 currentUser={currentUser}
                 theme={chatTheme}
                 onJoinCall={setCallType}
+                isCallActive={isCallActive}
               />
             );
           })}
         </AnimatePresence>
+        
+        {isTyping && (
+           <motion.div 
+             initial={{ opacity: 0, y: 10 }}
+             animate={{ opacity: 1, y: 0 }}
+             exit={{ opacity: 0, y: 10 }}
+             className="flex ml-4 mb-4"
+           >
+             <div className="bg-[#2B2D31] text-zinc-400 rounded-2xl rounded-tl-sm px-4 py-2.5 flex items-center space-x-1.5 shadow-sm max-w-[100px]">
+               <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+               <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+               <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+             </div>
+           </motion.div>
+        )}
+        
         <div ref={messagesEndRef} />
       </div>
 
