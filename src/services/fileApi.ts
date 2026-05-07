@@ -1,3 +1,5 @@
+import { CALL_API_BASE } from './callApi';
+
 export const PUBLIC_FILE_API_BASE_URL = import.meta.env.VITE_SUPABASE_URL || "https://hofehxzukldxdewgntof.supabase.co";
 const BUCKET_NAME = "chatgeral";
 
@@ -55,7 +57,7 @@ export async function uploadFileToBucket({ file, bucket, onProgress }: UploadFil
     const path = generateUniquePath(file);
     
     // Obter presigned URL do backend
-    const res = await fetch("/api/storage/presign", {
+    const res = await fetch(`${CALL_API_BASE}/api/storage/presign`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ filename: path, contentType: file.type })
@@ -152,7 +154,7 @@ export async function uploadGroupAvatar({ groupId, userId, file, onProgress }: {
 
 // Função de listagem do bucket da API
 export async function listFiles(bucket = "attachments") {
-  const res = await fetch("/api/storage/list");
+  const res = await fetch(`${CALL_API_BASE}/api/storage/list`);
   if (!res.ok) return [];
   const data = await res.json();
   const contents = data.contents || [];
@@ -209,7 +211,7 @@ export async function uploadVoiceToStorage(conversationId: string, messageId: st
   const contentTypeStr = file.type.split(';')[0];
   
   // Utilizando o backend existente de storage presign
-  const res = await fetch("/api/storage/presign", {
+  const res = await fetch(`${CALL_API_BASE}/api/storage/presign`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ filename: path, contentType: contentTypeStr })
@@ -254,7 +256,7 @@ export async function deleteFile(fileIdOrPath: string) {
      file = fileIdOrPath.split('/').slice(1).join('/');
   }
 
-  const res = await fetch("/api/storage/delete", {
+  const res = await fetch(`${CALL_API_BASE}/api/storage/delete`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ filename: file })

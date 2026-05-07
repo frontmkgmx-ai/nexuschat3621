@@ -1,7 +1,9 @@
 import { db } from "../lib/firebase";
 import { collection, query, where, getDocs, addDoc, onSnapshot } from "firebase/firestore";
 
-const STATUS_API_BASE = "http://54.233.121.231:8080/api";
+import { CALL_API_BASE } from "./callApi";
+
+const STATUS_API_BASE = CALL_API_BASE + "/api";
 
 export const statusService = {
   subscribeActiveStatuses(callback: (statuses: any[]) => void) {

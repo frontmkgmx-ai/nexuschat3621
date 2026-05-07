@@ -1,4 +1,4 @@
-export const CALL_API_BASE = import.meta.env.VITE_BACKEND_URL || (typeof window !== 'undefined' && window.location.hostname.includes('pages.dev') ? 'https://ais-pre-xuzmbbrky3fsn3pmuyrr5m-620959772325.us-east1.run.app' : '');
+export const CALL_API_BASE = import.meta.env.VITE_BACKEND_URL || '';
 
 const makeRequest = async (endpoint: string, method: 'GET' | 'POST' = 'GET', body?: any) => {
   const url = `${CALL_API_BASE}${endpoint}`;
