@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Search, MoreVertical, Check, CheckCheck, ArrowLeft, Phone, Video, MonitorUp, PhoneOff, Mic, MicOff, Camera, CameraOff, BadgeCheck, ShieldBan } from "lucide-react";
+import { Search, MoreVertical, Check, CheckCheck, ArrowLeft, Phone, Video, MonitorUp, PhoneOff, Mic, MicOff, Camera, CameraOff, BadgeCheck, ShieldBan, Hash } from "lucide-react";
 import { format } from "date-fns";
 import { motion, AnimatePresence } from "motion/react";
 import { db, rtdb } from "../lib/firebase";
@@ -598,20 +598,26 @@ export default function ChatWindow({
               <ArrowLeft className="w-6 h-6" />
             </button>
           )}
-          <img 
-            src={conversation.isGroup ? (sanitizeUrl(conversation.avatarUrl) || `https://api.dicebear.com/7.x/shapes/svg?seed=${conversation._id}`) : (sanitizeUrl(conversation.otherUser?.avatarUrl) || `https://api.dicebear.com/7.x/initials/svg?seed=${conversation.otherUser?.username || conversation.otherUser?.phoneNumber || conversation._id}`)} 
-            alt="Avatar" 
-            loading="lazy" 
-            decoding="async" 
-            className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl object-cover border border-zinc-700/50 flex-shrink-0 shadow-sm" 
-            onError={(e) => {
-              const target = e.target as HTMLImageElement;
-              if (!target.src.includes('dicebear.com/7.x/initials')) {
-                const seed = conversation.isGroup ? conversation.name : (conversation.otherUser?.username || conversation.otherUser?.phoneNumber || conversation._id);
-                target.src = `https://api.dicebear.com/7.x/initials/svg?seed=${seed}`;
-              }
-            }}
-          />
+          {conversation.isCommunityChannel ? (
+             <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-[#2B2D31] flex items-center justify-center flex-shrink-0 shadow-sm border border-zinc-700/50">
+                <Hash className="w-5 h-5 text-zinc-400" />
+             </div>
+          ) : (
+            <img 
+              src={conversation.isGroup ? (sanitizeUrl(conversation.avatarUrl) || `https://api.dicebear.com/7.x/shapes/svg?seed=${conversation._id}`) : (sanitizeUrl(conversation.otherUser?.avatarUrl) || `https://api.dicebear.com/7.x/initials/svg?seed=${conversation.otherUser?.username || conversation.otherUser?.phoneNumber || conversation._id}`)} 
+              alt="Avatar" 
+              loading="lazy" 
+              decoding="async" 
+              className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl object-cover border border-zinc-700/50 flex-shrink-0 shadow-sm" 
+              onError={(e) => {
+                const target = e.target as HTMLImageElement;
+                if (!target.src.includes('dicebear.com/7.x/initials')) {
+                  const seed = conversation.isGroup ? conversation.name : (conversation.otherUser?.username || conversation.otherUser?.phoneNumber || conversation._id);
+                  target.src = `https://api.dicebear.com/7.x/initials/svg?seed=${seed}`;
+                }
+              }}
+            />
+          )}
           <div className="flex flex-col justify-center min-w-0 flex-1">
             <div className="flex items-center gap-1.5 font-semibold text-zinc-100 truncate text-[14px] sm:text-[15px]">
               <span className="truncate">{conversation.isGroup ? (conversation.name || "Grupo") : (conversation.otherUser?.username || conversation.otherUser?.phoneNumber || "Usuário")}</span>

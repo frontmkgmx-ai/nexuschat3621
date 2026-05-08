@@ -4,6 +4,11 @@ import { Zap, Shield, Smartphone, Sparkles, MessageSquare, Globe, Phone, Users }
 
 const newsItems = [
   {
+    title: "Configurações Globais e Comunidades Otimizadas",
+    description: "Aprimoramos o menu de configurações para garantir que suas preferências sejam sincronizadas perfeitamente em toda a sua conta. Além disso, as Comunidades receberam um belo upgrade! Agora, os canais criados são exclusivos da comunidade e não misturam conversas de fora. Para dar um toque mais profissional, os chats comunitários exibem ícones únicos ao invés de usar a foto de perfil.",
+    icon: Sparkles,
+  },
+  {
     title: "Novo Perfil de Usuário Arrojado",
     description: "Sua página de perfil de usuário acabou de ficar muito melhor! Reinventamos a estrutura inspirados diretamente nas maiores plataformas de gamers. Agora sua experiência tem um background vibrante, suas conexões expostas em cards modernos e um banner irado. Personalizar seu perfil nunca foi tão gratificante!",
     icon: Sparkles,

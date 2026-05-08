@@ -435,93 +435,56 @@ const CommunityItem: React.FC<{ community: any, userGroups: any[], onOpenGroup: 
             {showAddGroup && (
                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
                   <div className="w-full max-w-sm bg-[#1e1f22] border border-[#2B2D31] rounded-2xl shadow-xl flex flex-col p-5 overflow-hidden max-h-screen">
-                      <h3 className="text-lg font-semibold text-white mb-4">Adicionar Canal</h3>
-                      
-                      <div className="flex bg-[#111214] p-1 rounded-xl mb-4 shrink-0">
-                          <button 
-                             onClick={() => setNewChannelMode('existing')}
-                             className={`flex-1 py-1.5 text-sm font-medium rounded-lg transition-colors ${newChannelMode === 'existing' ? 'bg-[#2B2D31] text-white shadow' : 'text-zinc-500 hover:text-zinc-300'}`}
-                          >Existente</button>
-                          <button 
-                             onClick={() => setNewChannelMode('new')}
-                             className={`flex-1 py-1.5 text-sm font-medium rounded-lg transition-colors ${newChannelMode === 'new' ? 'bg-[#2B2D31] text-white shadow' : 'text-zinc-500 hover:text-zinc-300'}`}
-                          >Criar Novo</button>
-                      </div>
+                      <h3 className="text-lg font-semibold text-white mb-4">Criar Canal</h3>
 
-                      {newChannelMode === 'existing' ? (
-                          <div className="overflow-y-auto space-y-2 mb-4 custom-scrollbar flex-1 min-h-[100px]">
-                             {userGroups.filter(g => !community.groups?.includes(g._id)).map(g => (
-                                 <div key={g._id} className="flex justify-between items-center p-3 rounded-xl bg-[#111214] border border-[#2B2D31]">
-                                     <div className="flex flex-col overflow-hidden">
-                                        <span className="text-white text-sm font-medium truncate">{g.name}</span>
-                                        <span className="text-zinc-500 text-xs">{g.participants?.length || 0} membros</span>
-                                     </div>
-                                     <button 
-                                        onClick={async () => {
-                                            try {
-                                               const commRef = doc(db, "communities", community._id);
-                                               await updateDoc(commRef, {
-                                                   groups: arrayUnion(g._id)
-                                               });
-                                               setShowAddGroup(false);
-                                            } catch (e) {
-                                               console.error("Error linking group:", e);
-                                            }
-                                        }}
-                                        className="px-3 py-1.5 bg-indigo-500 text-white text-xs font-semibold rounded-lg hover:bg-indigo-600 transition-colors"
-                                     >
-                                         Adicionar
-                                     </button>
-                                 </div>
-                             ))}
-                             {userGroups.filter(g => !community.groups?.includes(g._id)).length === 0 && (
-                                 <div className="text-zinc-500 text-sm text-center py-4">Nenhum grupo disponível para adicionar.</div>
-                             )}
+                      <div className="space-y-4 mb-4 flex-1 overflow-y-auto custom-scrollbar">
+                          <div>
+                              <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">Nome do Canal</label>
+                              <input type="text" value={newChannelName} onChange={e => setNewChannelName(e.target.value)} className="w-full bg-[#111214] border border-[#2B2D31] rounded-xl px-4 py-3 text-white text-sm focus:border-indigo-500 focus:outline-none" placeholder="Ex: Avisos Gerais" />
                           </div>
-                      ) : (
-                          <div className="space-y-4 mb-4 flex-1 overflow-y-auto custom-scrollbar">
-                              <div>
-                                  <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">Nome do Canal</label>
-                                  <input type="text" value={newChannelName} onChange={e => setNewChannelName(e.target.value)} className="w-full bg-[#111214] border border-[#2B2D31] rounded-xl px-4 py-3 text-white text-sm focus:border-indigo-500 focus:outline-none" placeholder="Ex: Avisos Gerais" />
-                              </div>
-                              <div>
-                                  <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">Tipo de Canal</label>
-                                  <select value={newChannelType} onChange={e => setNewChannelType(e.target.value)} className="w-full bg-[#111214] border border-[#2B2D31] rounded-xl px-4 py-3 text-white text-sm focus:border-indigo-500 focus:outline-none">
-                                      <option value="main">Principal (Texto e Mídia)</option>
-                                      <option value="media">Mídias (Apenas Mídias)</option>
-                                      <option value="news">Notícias</option>
-                                      <option value="logs">Logs e Avisos (Somente Leitura para membros)</option>
-                                      <option value="links">Links e Arquivos</option>
-                                  </select>
-                              </div>
-                              <button 
-                                 disabled={!newChannelName.trim()}
-                                 onClick={async () => {
-                                     try {
-                                         const newGroupRef = await addDoc(collection(db, "conversations"), {
-                                            isGroup: true,
-                                            isCommunityChannel: true,
-                                            channelType: newChannelType,
-                                            name: newChannelName,
-                                            participants: [currentUser._id],
-                                            admins: [currentUser._id],
-                                            createdAt: serverTimestamp(),
-                                            createdBy: currentUser._id,
-                                            messages: []
-                                         });
-                                         await updateDoc(doc(db, "communities", community._id), {
-                                             groups: arrayUnion(newGroupRef.id)
-                                         });
-                                         setShowAddGroup(false);
-                                         setNewChannelName("");
-                                     } catch (e) { console.error("Error creating channel", e); }
-                                 }}
-                                 className="w-full bg-indigo-500 hover:bg-indigo-600 disabled:opacity-50 text-white font-medium py-3 rounded-xl transition-colors"
-                              >
-                                  Criar Canal
-                              </button>
+                          <div>
+                              <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">Tipo de Canal</label>
+                              <select value={newChannelType} onChange={e => setNewChannelType(e.target.value)} className="w-full bg-[#111214] border border-[#2B2D31] rounded-xl px-4 py-3 text-white text-sm focus:border-indigo-500 focus:outline-none">
+                                  <option value="main">Principal (Texto e Mídia)</option>
+                                  <option value="media">Mídias (Apenas Mídias)</option>
+                                  <option value="news">Notícias</option>
+                                  <option value="logs">Logs e Avisos (Somente Leitura para membros)</option>
+                                  <option value="links">Links e Arquivos</option>
+                              </select>
                           </div>
-                      )}
+                          <button 
+                             disabled={!newChannelName.trim()}
+                             onClick={async () => {
+                                 try {
+                                     // Create new channel, making sure participants are initialized (at least the creator)
+                                     // But members of the community should have access? Yes, either we sync members or just allow community members to view it.
+                                     // Actually, currently we sync participants array? The user who created it just adds themselves to participants.
+                                     // Wait, earlier I made logic to add joined users to the participants arrays. 
+                                     // So new channels should probably get all community members as participants?
+                                     // For now, let's just make it have current members.
+                                     const newGroupRef = await addDoc(collection(db, "conversations"), {
+                                        isGroup: true,
+                                        isCommunityChannel: true,
+                                        channelType: newChannelType,
+                                        name: newChannelName,
+                                        participants: community.members || [currentUser._id],
+                                        admins: community.admins || [currentUser._id],
+                                        createdAt: serverTimestamp(),
+                                        createdBy: currentUser._id,
+                                        messages: []
+                                     });
+                                     await updateDoc(doc(db, "communities", community._id), {
+                                         groups: arrayUnion(newGroupRef.id)
+                                     });
+                                     setShowAddGroup(false);
+                                     setNewChannelName("");
+                                 } catch (e) { console.error("Error creating channel", e); }
+                             }}
+                             className="w-full bg-indigo-500 hover:bg-indigo-600 disabled:opacity-50 text-white font-medium py-3 rounded-xl transition-colors"
+                          >
+                              Criar Canal
+                          </button>
+                      </div>
                       
                       <button 
                          onClick={() => setShowAddGroup(false)}

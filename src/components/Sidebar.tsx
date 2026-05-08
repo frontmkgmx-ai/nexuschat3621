@@ -87,6 +87,16 @@ export default function Sidebar({
 
   const [syncState, setSyncState] = useState({ isSyncing: true, progress: 0 });
 
+  const updateUserSetting = async (key: string, value: boolean) => {
+    try {
+      await updateDoc(doc(db, "users", currentUser._id), {
+        [`settings.${key}`]: value
+      });
+    } catch (e) {
+      console.error("Error updating setting", e);
+    }
+  };
+
   useEffect(() => {
     let unmounted = false;
     const initialSync = async () => {
@@ -1432,15 +1442,15 @@ export default function Sidebar({
                       <div className="space-y-3">
                         <h3 className="text-xs font-bold uppercase tracking-widest text-indigo-400 pl-2">Perfil Público</h3>
                         <div className="bg-zinc-950/50 border border-zinc-800/80 rounded-2xl p-2 shadow-inner">
-                          <SettingToggle label="Mostrar Número/Email" defaultChecked={false} />
-                          <SettingToggle label="Visibilidade do Perfil" defaultChecked={true} />
+                          <SettingToggle label="Mostrar Número/Email" checked={currentUser.settings?.showContactInfo ?? false} onChange={(v) => updateUserSetting('showContactInfo', v)} />
+                          <SettingToggle label="Visibilidade do Perfil" checked={currentUser.settings?.profileVisible ?? true} onChange={(v) => updateUserSetting('profileVisible', v)} />
                         </div>
                       </div>
                       <div className="space-y-3">
                         <h3 className="text-xs font-bold uppercase tracking-widest text-indigo-400 pl-2">Segurança da Conta</h3>
                         <div className="bg-zinc-950/50 border border-zinc-800/80 rounded-2xl p-2 shadow-inner">
-                          <SettingToggle label="Autenticação em Duas Etapas" defaultChecked={true} />
-                          <SettingToggle label="Alertas de Segurança" defaultChecked={true} />
+                          <SettingToggle label="Autenticação em Duas Etapas" checked={currentUser.settings?.twoFactorAuth ?? true} onChange={(v) => updateUserSetting('twoFactorAuth', v)} />
+                          <SettingToggle label="Alertas de Segurança" checked={currentUser.settings?.securityAlerts ?? true} onChange={(v) => updateUserSetting('securityAlerts', v)} />
                         </div>
                       </div>
                       <div className="space-y-3">
@@ -1509,16 +1519,16 @@ export default function Sidebar({
                       <div className="space-y-3">
                         <h3 className="text-xs font-bold uppercase tracking-widest text-emerald-400 pl-2">Mensagens</h3>
                         <div className="bg-zinc-950/50 border border-zinc-800/80 rounded-2xl p-2 shadow-inner">
-                          <SettingToggle label="Criptografia de Ponta a Ponta" defaultChecked={true} disabled />
-                          <SettingToggle label="Recibos de Leitura" defaultChecked={true} />
-                          <SettingToggle label="Status de Última Vez Online" defaultChecked={true} />
+                          <SettingToggle label="Criptografia de Ponta a Ponta" checked={true} onChange={() => {}} disabled />
+                          <SettingToggle label="Recibos de Leitura" checked={currentUser.settings?.readReceipts ?? true} onChange={(v) => updateUserSetting('readReceipts', v)} />
+                          <SettingToggle label="Status de Última Vez Online" checked={currentUser.settings?.lastSeen ?? true} onChange={(v) => updateUserSetting('lastSeen', v)} />
                         </div>
                       </div>
                       <div className="space-y-3">
                         <h3 className="text-xs font-bold uppercase tracking-widest text-emerald-400 pl-2">Contatos</h3>
                         <div className="bg-zinc-950/50 border border-zinc-800/80 rounded-2xl p-2 shadow-inner">
-                          <SettingToggle label="Grupos (Quem pode adicionar)" defaultChecked={false} />
-                          <SettingToggle label="Contatos Bloqueados" defaultChecked={false} />
+                          <SettingToggle label="Grupos (Quem pode adicionar)" checked={currentUser.settings?.groupInvites ?? false} onChange={(v) => updateUserSetting('groupInvites', v)} />
+                          <SettingToggle label="Contatos Bloqueados" checked={currentUser.settings?.blockUnknown ?? false} onChange={(v) => updateUserSetting('blockUnknown', v)} />
                         </div>
                       </div>
                     </motion.div>
@@ -1535,16 +1545,16 @@ export default function Sidebar({
                       <div className="space-y-3">
                         <h3 className="text-xs font-bold uppercase tracking-widest text-amber-400 pl-2">Qualidade e Desempenho</h3>
                         <div className="bg-zinc-950/50 border border-zinc-800/80 rounded-2xl p-2 shadow-inner">
-                          <SettingToggle label="Iniciar chamadas com vídeo" defaultChecked={false} />
-                          <SettingToggle label="Ajustar qualidade à rede" defaultChecked={true} />
-                          <SettingToggle label="Aceleração de Hardware" defaultChecked={true} disabled />
+                          <SettingToggle label="Iniciar chamadas com vídeo" checked={currentUser.settings?.startWithVideo ?? false} onChange={(v) => updateUserSetting('startWithVideo', v)} />
+                          <SettingToggle label="Ajustar qualidade à rede" checked={currentUser.settings?.adaptiveQuality ?? true} onChange={(v) => updateUserSetting('adaptiveQuality', v)} />
+                          <SettingToggle label="Aceleração de Hardware" checked={true} onChange={() => {}} disabled />
                         </div>
                       </div>
                       <div className="space-y-3">
                         <h3 className="text-xs font-bold uppercase tracking-widest text-amber-400 pl-2">Microfone e Áudio</h3>
                         <div className="bg-zinc-950/50 border border-zinc-800/80 rounded-2xl p-2 shadow-inner">
-                          <SettingToggle label="Supressão de Ruído Avançada" defaultChecked={true} />
-                          <SettingToggle label="Isolamento de Voz" defaultChecked={true} />
+                          <SettingToggle label="Supressão de Ruído Avançada" checked={currentUser.settings?.noiseSuppression ?? true} onChange={(v) => updateUserSetting('noiseSuppression', v)} />
+                          <SettingToggle label="Isolamento de Voz" checked={currentUser.settings?.voiceIsolation ?? true} onChange={(v) => updateUserSetting('voiceIsolation', v)} />
                         </div>
                       </div>
                     </motion.div>
@@ -1561,9 +1571,9 @@ export default function Sidebar({
                       <div className="space-y-3">
                         <h3 className="text-xs font-bold uppercase tracking-widest text-cyan-400 pl-2">Backup de Conversas</h3>
                         <div className="bg-zinc-950/50 border border-zinc-800/80 rounded-2xl p-2 shadow-inner">
-                          <SettingToggle label="Backup Automático via Nuvem" defaultChecked={true} />
-                          <SettingToggle label="Incluir vídeos no backup" defaultChecked={false} />
-                          <SettingToggle label="Backup Criptografado de Ponta a Ponta" defaultChecked={true} />
+                          <SettingToggle label="Backup Automático via Nuvem" checked={currentUser.settings?.autoBackup ?? true} onChange={(v) => updateUserSetting('autoBackup', v)} />
+                          <SettingToggle label="Incluir vídeos no backup" checked={currentUser.settings?.includeVideosBackup ?? false} onChange={(v) => updateUserSetting('includeVideosBackup', v)} />
+                          <SettingToggle label="Backup Criptografado de Ponta a Ponta" checked={currentUser.settings?.e2eBackup ?? true} onChange={(v) => updateUserSetting('e2eBackup', v)} />
                         </div>
                       </div>
                       <button className="w-full bg-zinc-800 text-zinc-100 py-4 rounded-2xl font-bold uppercase tracking-wider text-xs border border-zinc-700 hover:bg-zinc-700 transition">
@@ -1761,13 +1771,12 @@ function MobileNavItem({ icon, active, onClick }: { icon: React.ReactNode, activ
   );
 }
 
-function SettingToggle({ label, defaultChecked, disabled }: { label: string, defaultChecked: boolean, disabled?: boolean }) {
-  const [checked, setChecked] = useState(defaultChecked);
+function SettingToggle({ label, checked, onChange, disabled }: { label: string, checked: boolean, onChange: (val: boolean) => void, disabled?: boolean }) {
   return (
     <div className={`flex items-center justify-between p-3 rounded-xl transition-colors ${disabled ? "opacity-50 pointer-events-none" : "hover:bg-zinc-800/50"}`}>
       <span className="text-sm font-medium text-zinc-300">{label}</span>
       <button 
-        onClick={() => setChecked(!checked)}
+        onClick={() => onChange(!checked)}
         className={`w-10 h-6 rounded-full p-1 transition-all flex items-center shadow-inner ${checked ? "bg-indigo-500" : "bg-zinc-700"}`}
       >
         <div className={`w-4 h-4 bg-white rounded-full shadow-sm transition-transform ${checked ? "translate-x-4" : "translate-x-0"}`} />
