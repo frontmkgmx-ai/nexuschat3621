@@ -30,7 +30,9 @@ const MessageBubble = React.memo(({
   currentUser,
   theme,
   onJoinCall,
-  isCallActive
+  isCallActive,
+  isGroup,
+  onOpenProfile
 }: { 
   msg: any, 
   isMine: boolean, 
@@ -40,7 +42,9 @@ const MessageBubble = React.memo(({
   currentUser: any,
   theme?: string,
   onJoinCall?: (type: 'audio' | 'video') => void,
-  isCallActive?: boolean
+  isCallActive?: boolean,
+  isGroup?: boolean,
+  onOpenProfile?: (userId: string) => void
 }) => {
   const getBubbleStyle = (isMine: boolean, theme?: string) => {
     if (theme === 'blue') {
@@ -125,12 +129,28 @@ const MessageBubble = React.memo(({
         </div>
       )}
       <div className={`flex mb-3 ${isMine ? "justify-end" : "justify-start"} ${justMedia ? "col-span-1 h-full w-full" : ""}`}>
+        {!isMine && isGroup && (
+           <img 
+              src={msg.senderAvatarUrl ? sanitizeUrl(msg.senderAvatarUrl) : `https://api.dicebear.com/7.x/pixel-art/svg?seed=${msg.senderId}`}
+              alt="Avatar"
+              className="w-8 h-8 rounded-xl object-cover mr-2 self-end shrink-0 cursor-pointer shadow-sm border border-zinc-800"
+              onClick={() => onOpenProfile && onOpenProfile(msg.senderId)}
+           />
+        )}
         <div 
           {...longPressProps}
           onContextMenu={handleRightClick}
           className={`relative max-w-[85%] sm:max-w-[75%] shadow-sm text-[15px] leading-relaxed w-fit select-none ${getBubbleStyle(isMine, theme)} ${justMedia ? "p-1.5 bg-transparent border-none shadow-none" : "px-3 py-2"}`}
         >
           <div className="flex flex-col w-fit max-w-full">
+            {!isMine && isGroup && !justMedia && (
+               <span 
+                 onClick={() => onOpenProfile && onOpenProfile(msg.senderId)}
+                 className="text-xs font-bold text-indigo-400 mb-1 cursor-pointer hover:underline"
+               >
+                 {msg.senderName || "Usuário"}
+               </span>
+            )}
             {hasReply && (
               <div className="mb-2 bg-black/20 rounded-lg p-2 border-l-2 border-indigo-400 text-sm">
                 <p className="text-xs text-indigo-300 font-semibold mb-0.5">{msg.replyTo.senderName}</p>
@@ -257,11 +277,13 @@ export default function ChatWindow({
   conversation: initialConversation,
   isMobileHidden,
   onBack,
+  onOpenProfile,
 }: {
   currentUser: any;
   conversation: any | null;
   isMobileHidden?: boolean;
   onBack?: () => void;
+  onOpenProfile?: (userId: string) => void;
 }) {
   const [conversation, setConversation] = useState<any>(initialConversation);
   const [messages, setMessages] = useState<any[]>([]);
@@ -608,7 +630,8 @@ export default function ChatWindow({
               alt="Avatar" 
               loading="lazy" 
               decoding="async" 
-              className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl object-cover border border-zinc-700/50 flex-shrink-0 shadow-sm" 
+              onClick={() => onOpenProfile && !conversation.isGroup && conversation.otherUser?._id && onOpenProfile(conversation.otherUser._id)}
+              className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl object-cover border border-zinc-700/50 flex-shrink-0 shadow-sm cursor-pointer" 
               onError={(e) => {
                 const target = e.target as HTMLImageElement;
                 if (!target.src.includes('dicebear.com/7.x/initials')) {
@@ -682,6 +705,8 @@ export default function ChatWindow({
                 theme={chatTheme}
                 onJoinCall={setCallType}
                 isCallActive={isCallActive}
+                isGroup={conversation.isGroup}
+                onOpenProfile={onOpenProfile}
               />
             );
           })}

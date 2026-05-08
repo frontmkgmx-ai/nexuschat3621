@@ -56,12 +56,14 @@ export default function Sidebar({
   onSelectConvo,
   onLogout,
   isMobileHidden,
+  onOpenProfile,
 }: {
   currentUser: any;
   selectedConvo: any;
   onSelectConvo: (convo: any) => void;
   onLogout: () => void;
   isMobileHidden?: boolean;
+  onOpenProfile?: (userId: string) => void;
 }) {
   const [activeTab, setActiveTab] = useState<InternalTab>("CHATS");
   const [settingsView, setSettingsView] = useState<"MENU" | "ACCOUNT" | "PRIVACY" | "AUDIO_VIDEO" | "BACKUPS" | "TERMS">("MENU");
@@ -332,6 +334,7 @@ export default function Sidebar({
     return { ...c, otherUser: otherId ? usersInfo[otherId] : null };
   }).filter(c => {
     if (c.deletedBy?.[currentUser._id] === true) return false;
+    if (c.isCommunityChannel) return false;
 
     const isArchived = c.archivedBy?.[currentUser._id] === true;
     if (showArchived && !isArchived) return false;
@@ -795,6 +798,12 @@ export default function Sidebar({
                           alt="Avatar" 
                           loading="lazy" 
                           decoding="async" 
+                          onClick={(e) => {
+                             if (!convo.isGroup && otherUser?._id && onOpenProfile) {
+                                e.stopPropagation();
+                                onOpenProfile(otherUser._id);
+                             }
+                          }}
                           onError={(e) => {
                             const target = e.target as HTMLImageElement;
                             if (!target.src.includes('dicebear.com/7.x/initials')) {
@@ -882,7 +891,16 @@ export default function Sidebar({
                            }}
                            className="flex items-center gap-3 p-3 rounded-xl hover:bg-[#2B2D31] cursor-pointer transition-colors"
                         >
-                          <img src={sanitizeUrl(contact.userProfile?.avatarUrl) || `https://api.dicebear.com/7.x/initials/svg?seed=${contact.name}`} className="w-10 h-10 rounded-full object-cover" />
+                          <img 
+                             src={sanitizeUrl(contact.userProfile?.avatarUrl) || `https://api.dicebear.com/7.x/initials/svg?seed=${contact.name}`} 
+                             className="w-10 h-10 rounded-full object-cover" 
+                             onClick={(e) => {
+                               if (contact.registeredUserId && onOpenProfile) {
+                                  e.stopPropagation();
+                                  onOpenProfile(contact.registeredUserId);
+                               }
+                             }}
+                          />
                           <div>
                             <p className="text-white font-medium text-sm">{contact.name}</p>
                             <p className="text-zinc-500 text-xs">{contact.phoneNumber}</p>
@@ -1025,7 +1043,18 @@ export default function Sidebar({
                         className="flex items-center mx-2 px-3 py-3 my-0.5 rounded-2xl cursor-pointer transition-colors"
                       >
                         <div className="relative shrink-0 mr-4">
-                          <img src={sanitizeUrl(contact.userProfile?.avatarUrl) || `https://api.dicebear.com/7.x/initials/svg?seed=${contact.name}`} className="w-12 h-12 rounded-2xl object-cover border border-zinc-700/50 shadow-sm" loading="lazy" decoding="async" />
+                          <img 
+                            src={sanitizeUrl(contact.userProfile?.avatarUrl) || `https://api.dicebear.com/7.x/initials/svg?seed=${contact.name}`} 
+                            className="w-12 h-12 rounded-2xl object-cover border border-zinc-700/50 shadow-sm" 
+                            loading="lazy" 
+                            decoding="async" 
+                            onClick={(e) => {
+                              if (contact.registeredUserId && onOpenProfile) {
+                                e.stopPropagation();
+                                onOpenProfile(contact.registeredUserId);
+                              }
+                            }}
+                          />
                           {contact.userProfile?.status && (
                             <div className={`absolute -bottom-1 -right-1 w-4 h-4 border-2 border-zinc-900 rounded-full shadow-sm z-10 ${contact.userProfile.status === 'online' ? 'bg-emerald-500' : contact.userProfile.status === 'idle' ? 'bg-amber-400' : 'bg-transparent'}`} />
                           )}

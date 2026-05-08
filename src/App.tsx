@@ -3,6 +3,7 @@ import Login from "./components/Login";
 import Sidebar from "./components/Sidebar";
 import ChatWindow from "./components/ChatWindow";
 import Terms from "./components/Terms";
+import UserProfileModal from "./components/UserProfileModal";
 import { rtdb, db, auth } from "./lib/firebase";
 import { ref, set, onDisconnect, onValue } from "firebase/database";
 import { doc, getDoc, setDoc, updateDoc, onSnapshot, collection, query, orderBy, limit, arrayUnion } from "firebase/firestore";
@@ -16,6 +17,7 @@ export default function App() {
     return saved ? JSON.parse(saved) : null;
   });
   const [selectedConvo, setSelectedConvo] = useState<any>(null);
+  const [publicProfileUser, setPublicProfileUser] = useState<any>(null);
   const [isFirebaseReady, setIsFirebaseReady] = useState(false);
 
   useEffect(() => {
@@ -241,13 +243,22 @@ export default function App() {
           onSelectConvo={setSelectedConvo}
           onLogout={handleLogout}
           isMobileHidden={!!selectedConvo}
+          onOpenProfile={setPublicProfileUser}
         />
         <ChatWindow 
           currentUser={currentUser} 
           conversation={selectedConvo} 
           isMobileHidden={!selectedConvo}
           onBack={() => setSelectedConvo(null)}
+          onOpenProfile={setPublicProfileUser}
         />
+        {publicProfileUser && (
+           <UserProfileModal 
+              userId={publicProfileUser} 
+              currentUserId={currentUser._id} 
+              onClose={() => setPublicProfileUser(null)} 
+           />
+        )}
       </div>
     </div>
   );

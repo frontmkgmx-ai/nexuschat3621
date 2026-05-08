@@ -4,6 +4,11 @@ import { Zap, Shield, Smartphone, Sparkles, MessageSquare, Globe, Phone, Users }
 
 const newsItems = [
   {
+    title: "Perfis Públicos e Separação de Canais",
+    description: "Você pediu e nós ouvimos! Clicou na foto de um usuário? Agora você é direcionado para uma página de Perfil Público espetacular, isolada do chat, onde pode conferir banner, avatar, sobre mim e os links permitidos. Além disso, os canais de comunidade agora são independentes: eles sumiram da aba global de mensagens e ganharam um espaço VIP somente na aba Comunidades. Muito mais organização para os seus chats!",
+    icon: Sparkles,
+  },
+  {
     title: "Configurações Globais e Comunidades Otimizadas",
     description: "Aprimoramos o menu de configurações para garantir que suas preferências sejam sincronizadas perfeitamente em toda a sua conta. Além disso, as Comunidades receberam um belo upgrade! Agora, os canais criados são exclusivos da comunidade e não misturam conversas de fora. Para dar um toque mais profissional, os chats comunitários exibem ícones únicos ao invés de usar a foto de perfil.",
     icon: Sparkles,
