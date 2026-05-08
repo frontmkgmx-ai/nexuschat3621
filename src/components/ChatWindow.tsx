@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Search, MoreVertical, Check, CheckCheck, ArrowLeft, Phone, Video, MonitorUp, PhoneOff, Mic, MicOff, Camera, CameraOff } from "lucide-react";
+import { Search, MoreVertical, Check, CheckCheck, ArrowLeft, Phone, Video, MonitorUp, PhoneOff, Mic, MicOff, Camera, CameraOff, BadgeCheck, ShieldBan } from "lucide-react";
 import { format } from "date-fns";
 import { motion, AnimatePresence } from "motion/react";
 import { db, rtdb } from "../lib/firebase";
@@ -118,13 +118,13 @@ const MessageBubble = React.memo(({
       className="flex flex-col"
     >
       {showDate && (
-        <div className="text-center my-6">
+        <div className="text-center my-6 col-span-full">
           <span className="bg-black/40 border border-white/5 backdrop-blur-md text-zinc-400 text-[10px] uppercase tracking-widest py-1.5 px-4 rounded-xl shadow-sm font-semibold">
             {format(msg._creationTime, "d 'de' MMMM 'de' yyyy")}
           </span>
         </div>
       )}
-      <div className={`flex mb-3 ${isMine ? "justify-end" : "justify-start"}`}>
+      <div className={`flex mb-3 ${isMine ? "justify-end" : "justify-start"} ${justMedia ? "col-span-1 h-full w-full" : ""}`}>
         <div 
           {...longPressProps}
           onContextMenu={handleRightClick}
@@ -613,7 +613,12 @@ export default function ChatWindow({
             }}
           />
           <div className="flex flex-col justify-center min-w-0 flex-1">
-            <div className="font-semibold text-zinc-100 truncate text-[14px] sm:text-[15px]">{conversation.isGroup ? (conversation.name || "Grupo") : (conversation.otherUser?.username || conversation.otherUser?.phoneNumber || "Usuário")}</div>
+            <div className="flex items-center gap-1.5 font-semibold text-zinc-100 truncate text-[14px] sm:text-[15px]">
+              <span className="truncate">{conversation.isGroup ? (conversation.name || "Grupo") : (conversation.otherUser?.username || conversation.otherUser?.phoneNumber || "Usuário")}</span>
+              {(conversation.isGroup && conversation.isVerified) || (!conversation.isGroup && conversation.otherUser?.role === 'admin') ? (
+                <BadgeCheck className="w-4 h-4 text-indigo-400 shrink-0" />
+              ) : null}
+            </div>
             <div className="text-[10px] text-indigo-400 uppercase tracking-widest font-bold mt-0.5 sm:mt-1 truncate">
               {conversation.isGroup ? 'Criptografia de ponta a ponta' : (
                 <span className="flex items-center gap-1.5 shrink-0">
@@ -625,12 +630,16 @@ export default function ChatWindow({
           </div>
         </div>
         <div className="flex items-center gap-2 sm:gap-4 text-zinc-400 shrink-0">
-          <button onClick={() => handleStartCall('audio')} className="p-2 sm:p-0 hover:bg-zinc-800 sm:hover:bg-transparent rounded-full sm:rounded-none">
-            <Phone className="w-5 h-5 cursor-pointer hover:text-indigo-400 transition-colors" />
-          </button>
-          <button onClick={() => handleStartCall('video')} className="p-2 sm:p-0 hover:bg-zinc-800 sm:hover:bg-transparent rounded-full sm:rounded-none">
-            <Video className="w-5 h-5 cursor-pointer hover:text-indigo-400 transition-colors" />
-          </button>
+          {!conversation.isCommunityChannel && (
+            <>
+              <button onClick={() => handleStartCall('audio')} className="p-2 sm:p-0 hover:bg-zinc-800 sm:hover:bg-transparent rounded-full sm:rounded-none">
+                <Phone className="w-5 h-5 cursor-pointer hover:text-indigo-400 transition-colors" />
+              </button>
+              <button onClick={() => handleStartCall('video')} className="p-2 sm:p-0 hover:bg-zinc-800 sm:hover:bg-transparent rounded-full sm:rounded-none">
+                <Video className="w-5 h-5 cursor-pointer hover:text-indigo-400 transition-colors" />
+              </button>
+            </>
+          )}
           <div className="w-[1px] h-6 bg-zinc-800 mx-1 hidden sm:block" />
           <Search className="w-5 h-5 cursor-pointer hover:text-indigo-400 transition-colors hidden sm:block" />
           <MoreVertical onClick={() => setIsSettingsOpen(true)} className="w-5 h-5 cursor-pointer hover:text-indigo-400 transition-colors" />
@@ -638,12 +647,14 @@ export default function ChatWindow({
       </div>
 
       {/* Messages View */}
-      <div className="flex-1 overflow-y-auto p-4 pb-12 sm:p-6 sm:pb-12 z-10 flex flex-col gap-2 custom-scrollbar overscroll-contain">
-        <div className="text-center mb-6 mt-4">
-          <span className="bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 text-[10px] uppercase tracking-widest font-bold py-1.5 px-4 rounded-xl shadow-sm">
-            Criptografia de ponta a ponta ativada
-          </span>
-        </div>
+      <div className={`flex-1 overflow-y-auto p-4 pb-12 sm:p-6 sm:pb-12 z-10 custom-scrollbar overscroll-contain ${conversation.channelType === 'media' ? 'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 content-start' : 'flex flex-col gap-2'}`}>
+        {conversation.channelType !== 'media' && (
+          <div className="text-center mb-6 mt-4">
+            <span className="bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 text-[10px] uppercase tracking-widest font-bold py-1.5 px-4 rounded-xl shadow-sm">
+              Criptografia de ponta a ponta ativada
+            </span>
+          </div>
+        )}
 
         <AnimatePresence initial={false}>
           {messages
@@ -688,16 +699,25 @@ export default function ChatWindow({
         <div ref={messagesEndRef} />
       </div>
 
-      <ChatInput 
-        currentUser={currentUser} 
-        conversation={conversation} 
-        scrollToBottom={scrollToBottom} 
-        setUploadProgress={setUploadProgress} 
-        replyingTo={replyingTo}
-        setReplyingTo={setReplyingTo}
-        editingMsg={editingMsg}
-        setEditingMsg={setEditingMsg}
-      />
+      {(!conversation.isCommunityChannel || conversation.admins?.includes(currentUser._id) || currentUser.role === 'admin') ? (
+        <ChatInput 
+          currentUser={currentUser} 
+          conversation={conversation} 
+          scrollToBottom={scrollToBottom} 
+          setUploadProgress={setUploadProgress} 
+          replyingTo={replyingTo}
+          setReplyingTo={setReplyingTo}
+          editingMsg={editingMsg}
+          setEditingMsg={setEditingMsg}
+          channelType={conversation.channelType}
+        />
+      ) : (
+        <div className="p-4 bg-[#1e1f22] border-t border-[#2B2D31] flex flex-col items-center justify-center gap-2 text-zinc-500 rounded-b-[20px] shadow-[0_-10px_20px_-10px_rgba(0,0,0,0.5)] z-20">
+            <div className="w-full max-w-sm flex items-center justify-center gap-2 py-3 bg-[#111214] border border-[#2B2D31] rounded-xl text-sm font-medium">
+               <ShieldBan className="w-4 h-4 text-indigo-400" /> Somente administradores podem enviar mensagens
+            </div>
+        </div>
+      )}
       
       <MessageContextMenu 
         isOpen={contextMenu.isOpen}

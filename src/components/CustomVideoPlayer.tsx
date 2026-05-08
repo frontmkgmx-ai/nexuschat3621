@@ -30,14 +30,23 @@ export default function CustomVideoPlayer({
         if (!video) return;
 
         const handleTimeUpdate = () => {
-            setCurrentTime(video.currentTime);
+            setCurrentTime(video.currentTime || 0);
+            if (video.duration && !isNaN(video.duration)) {
+                 setDuration(video.duration);
+            }
             setProgress((video.currentTime / video.duration) * 100 || 0);
         };
         const handleLoadedMetadata = () => {
-             setDuration(video.duration);
+             if (video.duration && !isNaN(video.duration)) {
+                 setDuration(video.duration);
+             }
         };
         const handlePlay = () => setIsPlaying(true);
         const handlePause = () => setIsPlaying(false);
+
+        // Verify initial state just in case it's already loaded
+        if (video.duration && !isNaN(video.duration)) setDuration(video.duration);
+        setIsPlaying(!video.paused && !video.ended);
 
         video.addEventListener('timeupdate', handleTimeUpdate);
         video.addEventListener('loadedmetadata', handleLoadedMetadata);
@@ -60,11 +69,10 @@ export default function CustomVideoPlayer({
         return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
     }, []);
 
-    const togglePlay = () => {
+    const togglePlay = (e?: React.MouseEvent) => {
+        if (e) e.stopPropagation();
         if (videoRef.current) {
-            if (isPlaying) {
-                videoRef.current.pause();
-            } else {
+            if (videoRef.current.paused || videoRef.current.ended) {
                 const playPromise = videoRef.current.play();
                 if (playPromise !== undefined) {
                     playPromise.catch(error => {
@@ -72,11 +80,14 @@ export default function CustomVideoPlayer({
                         setIsPlaying(false);
                     });
                 }
+            } else {
+                videoRef.current.pause();
             }
         }
     };
 
-    const toggleMute = () => {
+    const toggleMute = (e?: React.MouseEvent) => {
+        if (e) e.stopPropagation();
         if (videoRef.current) {
             videoRef.current.muted = !isMuted;
             setIsMuted(!isMuted);
@@ -84,6 +95,7 @@ export default function CustomVideoPlayer({
     };
 
     const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        e.stopPropagation();
         const val = parseFloat(e.target.value);
         setVolume(val);
         if (videoRef.current) {
@@ -98,7 +110,8 @@ export default function CustomVideoPlayer({
         }
     };
 
-    const toggleFullscreen = () => {
+    const toggleFullscreen = (e?: React.MouseEvent) => {
+        if (e) e.stopPropagation();
         if (!containerRef.current) return;
         if (!document.fullscreenElement) {
             containerRef.current.requestFullscreen().catch(err => {
@@ -109,7 +122,8 @@ export default function CustomVideoPlayer({
         }
     };
 
-    const togglePiP = async () => {
+    const togglePiP = async (e?: React.MouseEvent) => {
+        if (e) e.stopPropagation();
         if (videoRef.current && document.pictureInPictureEnabled) {
             if (document.pictureInPictureElement) {
                 await document.exitPictureInPicture();
@@ -120,17 +134,25 @@ export default function CustomVideoPlayer({
     };
 
     const handleProgressChange = (e: React.MouseEvent<HTMLDivElement>) => {
-        if (!videoRef.current) return;
+        e.stopPropagation();
+        if (!videoRef.current || !duration) return;
         const rect = e.currentTarget.getBoundingClientRect();
         const x = e.clientX - rect.left;
         const percentage = Math.max(0, Math.min(100, (x / rect.width) * 100));
-        videoRef.current.currentTime = (percentage / 100) * videoRef.current.duration;
+        const newTime = (percentage / 100) * duration;
+        videoRef.current.currentTime = newTime;
+        setCurrentTime(newTime);
+        setProgress(percentage);
     };
 
     const formatTime = (time: number) => {
-        if (isNaN(time)) return '0:00';
-        const mins = Math.floor(time / 60);
+        if (isNaN(time) || !isFinite(time)) return '0:00';
+        const hrs = Math.floor(time / 3600);
+        const mins = Math.floor((time % 3600) / 60);
         const secs = Math.floor(time % 60);
+        if (hrs > 0) {
+            return `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        }
         return `${mins}:${secs.toString().padStart(2, '0')}`;
     };
 
@@ -177,7 +199,7 @@ export default function CustomVideoPlayer({
 
             {/* Controls Overlay */}
             <div 
-                className={`absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent pt-12 pb-4 px-4 transition-opacity duration-300 ${showControls || !isPlaying ? 'opacity-100' : 'opacity-0'}`}
+                className={`absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent pt-12 pb-4 px-4 transition-opacity duration-300 z-10 ${showControls || !isPlaying ? 'opacity-100' : 'opacity-0'}`}
             >
                 {/* Progress Bar */}
                 <div 
@@ -241,7 +263,7 @@ export default function CustomVideoPlayer({
                             {isFullscreen ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
                         </button>
 
-                        {/* Settings Popup */}
+            {/* Settings Popup */}
                         {showSettings && (
                             <div 
                                 className="absolute bottom-12 right-12 bg-zinc-900/95 backdrop-blur-md rounded-xl p-2 w-56 text-white border border-white/10 shadow-2xl z-50 text-sm"
@@ -279,14 +301,20 @@ export default function CustomVideoPlayer({
                 </div>
             </div>
             
-            {/* Play/pause pulse overlay for centered click feedback */}
-            {!isPlaying && !showSettings && (
-                <div onClick={togglePlay} className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <div className="w-16 h-16 bg-black/50 rounded-full flex items-center justify-center backdrop-blur-sm border border-white/10 shadow-2xl">
-                         <Play className="w-8 h-8 fill-white text-white ml-1" />
+            {/* Clickable Overlay to capture clicks specifically for play/pause smoothly everywhere except on controls */}
+            <div 
+                className="absolute inset-0 z-0" 
+                onClick={togglePlay} 
+            >
+                {/* Play/pause pulse overlay for centered click feedback */}
+                {!isPlaying && !showSettings && (
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                        <div className="w-16 h-16 bg-black/50 rounded-full flex items-center justify-center backdrop-blur-sm border border-white/10 shadow-2xl">
+                             <Play className="w-8 h-8 fill-white text-white ml-1" />
+                        </div>
                     </div>
-                </div>
-            )}
+                )}
+            </div>
         </div>
     );
 }

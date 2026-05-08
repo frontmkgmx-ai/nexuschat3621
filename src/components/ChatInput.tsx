@@ -13,7 +13,8 @@ export default function ChatInput({
   replyingTo,
   setReplyingTo,
   editingMsg,
-  setEditingMsg
+  setEditingMsg,
+  channelType
 }: {
   currentUser: any;
   conversation: any;
@@ -23,6 +24,7 @@ export default function ChatInput({
   setReplyingTo?: (val: any) => void;
   editingMsg?: any;
   setEditingMsg?: (val: any) => void;
+  channelType?: string;
 }) {
   const [text, setText] = useState("");
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -50,6 +52,11 @@ export default function ChatInput({
   const handleSend = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!text.trim() || !conversation) return;
+
+    if (channelType === 'media' || channelType === 'links') {
+        alert(`O canal selecionado (${channelType === 'media' ? 'Mídia' : 'Links'}) não permite envio de mensagens de texto avulsas. Por favor, envie diretamente o respectivo anexo.`);
+        return;
+    }
 
     const currentText = text.trim();
     setText("");
@@ -206,19 +213,20 @@ export default function ChatInput({
           <button type="button" className="p-2 rounded-full hover:bg-white/5 hover:text-indigo-400 transition-colors hidden sm:block">
             <Smile className="w-[22px] h-[22px]" />
           </button>
-          <label className="cursor-pointer p-2 rounded-full hover:bg-white/5 hover:text-indigo-400 transition-colors block">
+          <label className={`p-2 rounded-full hover:bg-white/5 transition-colors block ${channelType === 'logs' ? 'text-zinc-600 cursor-not-allowed' : 'cursor-pointer hover:text-indigo-400 text-zinc-400'}`}>
             <Paperclip className="w-[22px] h-[22px]" />
-            <input type="file" className="hidden" onChange={handleFileUpload} />
+            <input type="file" className="hidden" onChange={handleFileUpload} accept={channelType === 'media' ? "image/*,video/*" : channelType === 'links' ? ".pdf,.doc,.docx,.xls,.xlsx,.zip,.rar,.apk" : "*/*"} disabled={channelType === 'logs'} />
           </label>
         </div>
         <form onSubmit={handleSend} className="flex-1 relative">
           <input
             type="text"
-            className="w-full bg-[#18181b] border border-white/10 rounded-full px-5 py-3.5 focus:outline-none focus:border-indigo-500/50 focus:bg-[#1f1f22] text-zinc-100 placeholder-zinc-500 transition-all text-[15px] shadow-inner"
-            placeholder="Digite uma mensagem..."
+            className="w-full bg-[#18181b] border border-white/10 rounded-full px-5 py-3.5 focus:outline-none focus:border-indigo-500/50 focus:bg-[#1f1f22] text-zinc-100 placeholder-zinc-500 transition-all text-[15px] shadow-inner disabled:opacity-50 disabled:cursor-not-allowed"
+            placeholder={channelType === 'logs' ? "Somente logs..." : channelType === 'media' ? "Envie arquivos de mídia..." : channelType === 'links' ? "Envie arquivos e links..." : "Digite uma mensagem..."}
             value={text}
             onChange={handleTextChange}
             onKeyDown={handleKeyDown}
+            disabled={channelType === 'media' || channelType === 'links'}
           />
         </form>
         <div className={`flex items-center ${text.trim() ? "text-indigo-500" : "text-zinc-600"} transition-colors ml-2 sm:ml-3 z-20`}>

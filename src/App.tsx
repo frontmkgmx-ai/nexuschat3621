@@ -4,8 +4,8 @@ import Sidebar from "./components/Sidebar";
 import ChatWindow from "./components/ChatWindow";
 import Terms from "./components/Terms";
 import { rtdb, db, auth } from "./lib/firebase";
-import { ref, set, onDisconnect } from "firebase/database";
-import { doc, getDoc, setDoc, updateDoc, onSnapshot, collection, query, orderBy, limit } from "firebase/firestore";
+import { ref, set, onDisconnect, onValue } from "firebase/database";
+import { doc, getDoc, setDoc, updateDoc, onSnapshot, collection, query, orderBy, limit, arrayUnion } from "firebase/firestore";
 import { requestNotificationPermission, setupForegroundMessages, showBrowserNotification } from "./services/fcm";
 
 import { Toaster, toast } from 'sonner';
@@ -20,6 +20,46 @@ export default function App() {
 
   useEffect(() => {
     if (!currentUser) return;
+
+    const checkJoinLink = async () => {
+        const path = window.location.pathname;
+        if (path.startsWith('/join/')) {
+            const commId = path.split('/')[2];
+            if (commId) {
+                try {
+                    const commRef = doc(db, "communities", commId);
+                    const commSnap = await getDoc(commRef);
+                    if (commSnap.exists()) {
+                        const commData = commSnap.data();
+                        // Add user to community members
+                        if (!commData.members?.includes(currentUser._id)) {
+                             await updateDoc(commRef, { members: arrayUnion(currentUser._id) });
+                        }
+                        // Add user to all groups of this community as normal participant
+                        if (commData.groups?.length > 0) {
+                            for (const gId of commData.groups) {
+                                const gRef = doc(db, "conversations", gId);
+                                const gSnap = await getDoc(gRef);
+                                if (gSnap.exists()) {
+                                    const gData = gSnap.data();
+                                    if (!gData.participants?.includes(currentUser._id)) {
+                                        await updateDoc(gRef, { participants: arrayUnion(currentUser._id) });
+                                    }
+                                }
+                            }
+                        }
+                        toast.success(`Você entrou na comunidade: ${commData.name}`);
+                    } else {
+                        toast.error("Comunidade não encontrada.");
+                    }
+                } catch (e) {
+                    console.error("Error joining community", e);
+                }
+                window.history.replaceState({}, '', '/');
+            }
+        }
+    };
+    checkJoinLink();
 
     let timeout: NodeJS.Timeout;
     let unsubscribeUser: () => void;
@@ -81,6 +121,14 @@ export default function App() {
           setOnline();
           timeout = setTimeout(setIdle, 5 * 60 * 1000); // 5 mins idle
         };
+
+        const roleRef = ref(rtdb, `users/${currentUser._id}/role`);
+        onValue(roleRef, (snapshot) => {
+          const role = snapshot.val();
+          if (role) {
+            updateDoc(doc(db, "users", currentUser._id), { role }).catch(() => {});
+          }
+        });
 
         window.addEventListener("mousemove", resetIdleTimer);
         window.addEventListener("keydown", resetIdleTimer);

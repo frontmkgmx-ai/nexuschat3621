@@ -30,7 +30,7 @@ import {
   CheckCircle2,
   Loader2,
   MessageSquare,
-  Trash2, Archive, Download, FileText, UserPlus as AddUserIcon, MoreVertical
+  Trash2, Archive, Download, FileText, UserPlus as AddUserIcon, MoreVertical, BadgeCheck
 } from "lucide-react";
 import { format } from "date-fns";
 import { parsePhoneNumber, getCountryCallingCode, CountryCode, getCountries } from "libphonenumber-js";
@@ -44,6 +44,7 @@ import { uploadProfilePhoto, sanitizeUrl } from "../services/fileApi";
 import NewsView from "./NewsView";
 import Inpage from "./Inpage";
 import TermsAndPrivacy from "./TermsAndPrivacy";
+import CommunitiesTab from "./CommunitiesTab";
 
 type InternalTab = "CHATS" | "CONTACTS" | "GROUPS" | "SETTINGS" | "PROFILE" | "INPAGE" | "COMMUNITIES" | "NEWS";
 
@@ -798,7 +799,12 @@ export default function Sidebar({
                       
                       <div className="flex-1 overflow-hidden pointer-events-none">
                         <div className="flex justify-between items-center mb-1">
-                          <span className="text-zinc-100 font-semibold truncate pr-2 text-[15px]">{displayName}</span>
+                          <div className="flex items-center gap-1.5 truncate pr-2">
+                             <span className="text-zinc-100 font-semibold truncate text-[15px]">{displayName}</span>
+                             {((convo.isGroup && convo.isVerified) || (!convo.isGroup && otherUser?.role === 'admin')) && (
+                                <BadgeCheck className="w-4 h-4 text-indigo-400 shrink-0" />
+                             )}
+                          </div>
                           {convo.updatedAt && (
                             <span className="text-xs font-medium text-zinc-500 whitespace-nowrap">{format(convo.updatedAt, "HH:mm")}</span>
                           )}
@@ -1016,7 +1022,10 @@ export default function Sidebar({
                         </div>
                         <div className="flex-1 overflow-hidden">
                           <div className="flex justify-between items-center mb-0.5">
-                            <span className="text-zinc-100 font-semibold text-[15px] truncate">{contact.name}</span>
+                            <div className="flex items-center gap-1.5 truncate">
+                               <span className="text-zinc-100 font-semibold text-[15px] truncate">{contact.name}</span>
+                               {contact.userProfile?.role === 'admin' && <BadgeCheck className="w-4 h-4 text-indigo-400 shrink-0" />}
+                            </div>
                             {!contact.userProfile && (
                               <span className="text-[9px] text-indigo-400 font-bold uppercase px-2 py-0.5 bg-indigo-500/10 border border-indigo-500/20 rounded-md">Convite</span>
                             )}
@@ -1591,6 +1600,10 @@ export default function Sidebar({
           {activeTab === "INPAGE" && (
             <Inpage currentUser={currentUser} />
           )}
+
+          {activeTab === "COMMUNITIES" && (
+            <CommunitiesTab currentUser={currentUser} onSelectConvo={onSelectConvo} />
+          )}
         </AnimatePresence>
       </div>
       )}
@@ -1661,6 +1674,7 @@ export default function Sidebar({
                             await updateDoc(doc(db, "conversations", showAddConvoMembers._id), {
                                participants: newParticipants,
                                isGroup: true,
+                               isVerified: currentUser.role === 'admin',
                                name: showAddConvoMembers.name || showAddConvoMembers.otherUser?.username || "Novo Grupo"
                             });
                             setShowAddConvoMembers(null);
