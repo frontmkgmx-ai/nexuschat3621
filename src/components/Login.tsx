@@ -73,6 +73,10 @@ export default function Login({ onLogin }: { onLogin: (user: any) => void }) {
 
         const isAIStudio = window.location.hostname.includes("run.app") || window.location.hostname.includes("google") || window.location.hostname.includes("localhost");
         
+        if (document.activeElement instanceof HTMLElement) {
+          document.activeElement.blur();
+        }
+
         if (isAIStudio) {
           // Instead of skipping entirely, let's go to OTP if they want to simulate or use Google
           setStep("OTP");
@@ -90,6 +94,9 @@ export default function Login({ onLogin }: { onLogin: (user: any) => void }) {
   };
 
   const proceedToProfile = () => {
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
     setStep("PROFILE");
   };
 
@@ -205,9 +212,9 @@ export default function Login({ onLogin }: { onLogin: (user: any) => void }) {
   };
 
   const variants = {
-    initial: { opacity: 0, x: 20 },
-    animate: { opacity: 1, x: 0 },
-    exit: { opacity: 0, x: -20 }
+    initial: { opacity: 0, scale: 0.98 },
+    animate: { opacity: 1, scale: 1 },
+    exit: { opacity: 0, scale: 0.98 }
   };
 
   return (
@@ -339,7 +346,6 @@ export default function Login({ onLogin }: { onLogin: (user: any) => void }) {
                       placeholder="000000"
                       value={otp}
                       onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
-                      autoFocus
                     />
                   </div>
                 </div>
