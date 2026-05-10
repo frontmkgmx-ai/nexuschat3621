@@ -260,23 +260,42 @@ export function useWebRTC({ callId, userId, userName, isGroup }: UseWebRTCParams
     };
   }, [socket, getOrCreatePeerConnection, callId, userId]);
 
-  const startLocalStream = useCallback(async (video: any = true, audio: any = true) => {
+  const startLocalStream = useCallback(async (video: any = true, audioConstraints: any = true, quality: string = 'normal') => {
     try {
       if (localStreamRef.current) {
         localStreamRef.current.getTracks().forEach(t => t.stop());
       }
-      const stream = await navigator.mediaDevices.getUserMedia({ video, audio });
+      const stream = await navigator.mediaDevices.getUserMedia({ video, audio: audioConstraints });
       setLocalStream(stream);
       localStreamRef.current = stream;
       
-      // Update existing peer connections with new tracks
+      // Update existing peer connections with new tracks and adjust bitrates
       Object.values(pcRef.current).forEach((pc: unknown) => {
         const typedPc = pc as RTCPeerConnection;
         const senders = typedPc.getSenders();
-        stream.getTracks().forEach(track => {
+        stream.getTracks().forEach(async (track) => {
           const sender = senders.find(s => s.track?.kind === track.kind);
           if (sender) {
-            sender.replaceTrack(track);
+            await sender.replaceTrack(track);
+            
+            // Adjust maxBitrate for Audio based on quality
+            if (track.kind === 'audio') {
+               const params = sender.getParameters();
+               if (!params.encodings) params.encodings = [{}];
+               
+               let maxBitrate;
+               if (quality === 'low') maxBitrate = 16000;
+               else if (quality === 'normal') maxBitrate = 32000;
+               else if (quality === 'ultra') maxBitrate = 64000;
+               else if (quality === 'lossless') maxBitrate = 128000;
+               
+               if (maxBitrate) {
+                 params.encodings[0].maxBitrate = maxBitrate;
+                 try {
+                   await sender.setParameters(params);
+                 } catch (e) {}
+               }
+            }
           } else {
             typedPc.addTrack(track, stream);
           }

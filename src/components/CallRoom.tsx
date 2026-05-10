@@ -191,23 +191,25 @@ export default function CallRoom({ currentUser, conversation, callType, onEndCal
     }).catch(console.error);
   }, []);
 
+  const isFirstMount = useRef(true);
+
+  // 1. Initial Connection. Runs ONLY ONCE per call
   useEffect(() => {
-    // 1. Initialize Stream
+    let mounted = true;
     const init = async () => {
       try {
         const stream = await startLocalStream(callType === 'video', {
            deviceId: selectedMic !== 'default' ? { exact: selectedMic } : undefined,
            noiseSuppression: noiseSuppression,
-           echoCancellation: audioQuality !== 'lossless',
+           echoCancellation: true, // Fix Echo issue, always true
            autoGainControl: audioQuality !== 'lossless',
            sampleRate: audioQuality === 'low' ? 16000 : 48000
-        });
+        }, audioQuality);
+        if (!mounted) return;
         if (localVideoRef.current && callType === 'video') {
           localVideoRef.current.srcObject = stream;
         }
         connectSocket();
-        
-        // Play enter sound
         import("../services/soundService").then(s => s.soundService.playCallEnter());
       } catch (err: any) {
         console.error(err);
@@ -220,12 +222,50 @@ export default function CallRoom({ currentUser, conversation, callType, onEndCal
     onDisconnect(myCallRef).remove();
 
     return () => {
+      mounted = false;
       cleanup();
       set(myCallRef, null);
-      // Play leave sound
       import("../services/soundService").then(s => s.soundService.playCallLeave());
     };
-  }, [callId, callType, startLocalStream, connectSocket, cleanup, selectedMic, noiseSuppression, audioQuality, currentUser._id]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [callId, callType, currentUser._id]); // Exclude selectedMic, noiseSuppression, audioQuality
+
+  // 2. Adjust audio tracks and Quality dynamically WITHOUT dropping connection
+  useEffect(() => {
+    if (isFirstMount.current) {
+      isFirstMount.current = false;
+      return;
+    }
+    const applyChanges = async () => {
+      try {
+        const stream = await startLocalStream(hasVideo, {
+          deviceId: selectedMic !== 'default' ? { exact: selectedMic } : undefined,
+          noiseSuppression: noiseSuppression,
+          echoCancellation: true, // Always true to avoid echo
+          autoGainControl: audioQuality !== 'lossless',
+          sampleRate: audioQuality === 'low' ? 16000 : 48000
+        }, audioQuality);
+        if (localVideoRef.current && hasVideo) {
+          localVideoRef.current.srcObject = stream;
+        }
+      } catch (e) {
+        console.error('Failed to update local stream', e);
+      }
+    };
+    applyChanges();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [audioQuality, selectedMic, noiseSuppression]);
+
+  // 3. Auto Adjust quality based on network
+  useEffect(() => {
+    if (networkQuality === 'Ruim' && audioQuality !== 'low') {
+      setAudioQuality('low');
+    } else if (networkQuality === 'Boa' && audioQuality === 'ultra') {
+      setAudioQuality('normal');
+    } else if (networkQuality === 'Excelente' && audioQuality === 'low') {
+      setAudioQuality('normal');
+    }
+  }, [networkQuality, audioQuality]);
 
   useEffect(() => {
     // Quality monitor
