@@ -76,6 +76,19 @@ export default function Sidebar({
   const [newContactPhone, setNewContactPhone] = useState("");
   const [countryCode, setCountryCode] = useState<CountryCode>("BR");
   
+  const [draggedId, setDraggedId] = useState<string | null>(null);
+  const [chatOrderLayout, setChatOrderLayout] = useState<string[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem(`chatOrder_${currentUser._id}`) || "[]");
+    } catch {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    localStorage.setItem(`chatOrder_${currentUser._id}`, JSON.stringify(chatOrderLayout));
+  }, [chatOrderLayout, currentUser._id]);
+  
   const [profileName, setProfileName] = useState(currentUser.username);
   const [profileAvatar, setProfileAvatar] = useState(currentUser.avatarUrl ? sanitizeUrl(currentUser.avatarUrl) : "");
   const [profileBanner, setProfileBanner] = useState(currentUser.bannerUrl ? sanitizeUrl(currentUser.bannerUrl) : "");
@@ -346,6 +359,33 @@ export default function Sidebar({
     const phoneMatch = !c.isGroup && c.otherUser?.phoneNumber?.includes(search);
     return nameMatch || phoneMatch;
   });
+
+  const sortedFilteredConvos = [...filteredConvos].sort((a, b) => {
+    const idxA = chatOrderLayout.indexOf(a._id);
+    const idxB = chatOrderLayout.indexOf(b._id);
+    if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+    if (idxA !== -1) return -1;
+    if (idxB !== -1) return 1;
+    return 0; // maintain original `updatedAt` order for ones not in layout
+  });
+
+  const handleDrop = (e: React.DragEvent, targetConvoId: string) => {
+    e.preventDefault();
+    if (!draggedId || draggedId === targetConvoId) return;
+    
+    // Construct current full id list from all filtered (both customized and default)
+    const currentOrder = sortedFilteredConvos.map(c => c._id);
+    const fromIndex = currentOrder.indexOf(draggedId);
+    const toIndex = currentOrder.indexOf(targetConvoId);
+    
+    if (fromIndex !== -1 && toIndex !== -1) {
+       const newOrder = [...currentOrder];
+       const [removed] = newOrder.splice(fromIndex, 1);
+       newOrder.splice(toIndex, 0, removed);
+       setChatOrderLayout(newOrder);
+    }
+    setDraggedId(null);
+  };
 
   const handleArchiveConvo = async (convo: any) => {
     try {
@@ -767,7 +807,7 @@ export default function Sidebar({
                     </button>
                   </div>
                 )}
-                {filteredConvos.map((convo) => {
+                {sortedFilteredConvos.map((convo) => {
                   const otherUser = convo.otherUser;
                   const displayName = convo.isGroup ? (convo.name || "Grupo") : (otherUser?.username || otherUser?.phoneNumber || "Usuário");
                   const avatar = convo.isGroup 
@@ -776,6 +816,17 @@ export default function Sidebar({
 
                   return (
                     <motion.div
+                      draggable
+                      onDragStart={(e) => {
+                         setDraggedId(convo._id);
+                         if(e.dataTransfer) e.dataTransfer.effectAllowed = "move";
+                      }}
+                      onDragOver={(e) => {
+                         e.preventDefault();
+                         if(e.dataTransfer) e.dataTransfer.dropEffect = "move";
+                      }}
+                      onDrop={(e) => handleDrop(e as unknown as React.DragEvent, convo._id)}
+                      onDragEnd={() => setDraggedId(null)}
                       whileHover={{ backgroundColor: "rgba(39, 39, 42, 0.4)" }}
                       whileTap={{ scale: 0.98 }}
                       key={convo._id}
@@ -788,6 +839,8 @@ export default function Sidebar({
                       onTouchEnd={handleTouchEnd}
                       onTouchMove={handleTouchEnd}
                       className={`flex items-center mx-2 px-3 py-3 md:py-3.5 my-0.5 rounded-2xl cursor-pointer transition-colors relative ${
+                        draggedId === convo._id ? 'opacity-40' : ''
+                      } ${
                         selectedConvo?._id === convo._id ? "bg-zinc-800/80 shadow-sm" : ""
                       }`}
                     >
