@@ -1,4 +1,10 @@
-export const CALL_API_BASE = import.meta.env.VITE_BACKEND_URL || '';
+export const CALL_API_BASE = import.meta.env.VITE_CALL_API_URL || import.meta.env.VITE_BACKEND_URL || '';
+
+if (import.meta.env.DEV) {
+  if (!import.meta.env.VITE_CALL_API_URL) {
+    console.error("VITE_CALL_API_URL is missing in environment variables!");
+  }
+}
 
 const makeRequest = async (endpoint: string, method: 'GET' | 'POST' = 'GET', body?: any) => {
   const url = `${CALL_API_BASE}${endpoint}`;

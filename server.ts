@@ -23,14 +23,35 @@ const BUCKET_NAME = process.env.SUPABASE_S3_BUCKET || "chatgeral";
 
 async function startServer() {
   const app = express();
-  app.use(cors());
-  const PORT = 3000;
+  const allowedOrigins = [
+    "https://nexuschat.cysmk.online",
+    "https://nexuschat-55d.pages.dev",
+    "https://call.ironvalecraft.shop",
+    "https://painelcall.ironvalecraft.shop",
+    "http://localhost:5173", // For development
+    "http://localhost:3000"  // For development
+  ];
+
+  app.use(cors({
+    origin: function (origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']
+  }));
+  const PORT = process.env.API_PORT || process.env.PORT || 4000;
   const httpServer = createHttpServer(app);
   
   const io = new SocketIOServer(httpServer, {
+    path: process.env.SOCKET_PATH || '/socket.io',
     cors: {
-      origin: "*",
-      methods: ["GET", "POST"]
+      origin: allowedOrigins,
+      methods: ["GET", "POST"],
+      credentials: true
     }
   });
 
@@ -81,6 +102,42 @@ async function startServer() {
   });
 
   app.use(express.json());
+
+  // API Root route
+  app.get("/", (req, res) => {
+    // Only return the JSON if explicitly hit as an API or missing Accept header for HTML,
+    // Note: since this is also a Vite SSR/SPA host, we check if it's the specific domain or just return it for testing.
+    // To preserve Vite's SSR, we only respond to JSON requests here or if explicitly matched.
+    if (req.accepts('html') && process.env.NODE_ENV === 'production') {
+       return res.sendFile(path.join(process.cwd(), "dist", "index.html"));
+    }
+    
+    res.json({
+      success: true,
+      name: "Nexus Calls API",
+      version: "1.0.0",
+      api: process.env.PUBLIC_API_URL || "https://call.ironvalecraft.shop",
+      socket: process.env.SOCKET_PATH || "/socket.io",
+      panel: process.env.PUBLIC_PANEL_URL || "https://painelcall.ironvalecraft.shop",
+      docs: "/docs",
+      health: "/health"
+    });
+  });
+
+  // Health route
+  app.get("/health", (req, res) => {
+    res.json({
+      ok: true,
+      service: "Nexus Calls API",
+      version: "1.0.0",
+      timestamp: new Date().toISOString()
+    });
+  });
+
+  // Docs route
+  app.get("/docs", (req, res) => {
+    res.sendFile(path.join(process.cwd(), "docs.html"));
+  });
 
   // Storage API endpoints
   app.post("/api/storage/presign", async (req, res) => {

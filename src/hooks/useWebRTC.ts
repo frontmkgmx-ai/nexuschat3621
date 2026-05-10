@@ -22,9 +22,22 @@ export function useWebRTC({ callId, userId, userName, isGroup }: UseWebRTCParams
 
   const connectSocket = useCallback(() => {
     if (socketRef.current) return;
-    const newSocket = io(CALL_API_BASE || undefined, {
-      path: '/socket.io',
-      transports: ['websocket', 'polling']
+    const wsUrl = import.meta.env.VITE_CALL_WS_URL || CALL_API_BASE || undefined;
+    const socketPath = import.meta.env.VITE_CALL_SOCKET_PATH || '/socket.io';
+    
+    if (import.meta.env.DEV) {
+      if (!import.meta.env.VITE_CALL_WS_URL) {
+        console.error("VITE_CALL_WS_URL is missing in environment variables!");
+      }
+    }
+
+    const newSocket = io(wsUrl, {
+      path: socketPath,
+      transports: ['websocket', 'polling'],
+      secure: true,
+      reconnection: true,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 1000
     });
 
     socketRef.current = newSocket;
