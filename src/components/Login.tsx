@@ -9,6 +9,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { sanitizeUrl } from "../services/fileApi";
 import { useNexusNative } from "../hooks/useNexusNative";
 import { QRCodeSVG } from "qrcode.react";
+import { CALL_API_BASE } from "../services/callApi";
 
 type LoginStep = "PHONE" | "OTP" | "PROFILE" | "QR_LOGIN";
 
@@ -59,7 +60,7 @@ export default function Login({ onLogin }: { onLogin: (user: any) => void }) {
     const fetchQr = async () => {
        try {
          const deviceName = isNative ? "Nexus Desktop App" : /Edg/.test(navigator.userAgent) ? "Edge Browser" : /Chrome/.test(navigator.userAgent) ? "Chrome Browser" : "Desktop Browser";
-         const res = await fetch(`/api/auth/qr?device=${encodeURIComponent(deviceName)}`);
+         const res = await fetch(`${CALL_API_BASE}/api/auth/qr?device=${encodeURIComponent(deviceName)}`);
          const data = await res.json();
          setQrSessionId(data.sessionId);
          setQrDataStr(data.qrData);
@@ -92,7 +93,7 @@ export default function Login({ onLogin }: { onLogin: (user: any) => void }) {
 
     if (step === "QR_LOGIN") {
        fetchQr();
-       timerId = setInterval(fetchQr, 5000);
+       timerId = setInterval(fetchQr, 60000); // refresh every 60 seconds
     }
 
     return () => {
