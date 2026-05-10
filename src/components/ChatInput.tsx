@@ -123,6 +123,51 @@ export default function ChatInput({
     else if (mimeType.startsWith("video/")) type = "video";
     else if (mimeType.startsWith("audio/")) type = "audio";
 
+    // Generate small thumbnail for feedback
+    let filePreview = "";
+    if (type === "image") {
+       try {
+         filePreview = await new Promise<string>((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+               const img = new Image();
+               img.onload = () => {
+                   const canvas = document.createElement("canvas");
+                   const max = 150;
+                   let width = img.width;
+                   let height = img.height;
+                   if (width > height) {
+                       if (width > max) {
+                          height = Math.round((height *= max / width));
+                          width = max;
+                       }
+                   } else {
+                       if (height > max) {
+                          width = Math.round((width *= max / height));
+                          height = max;
+                       }
+                   }
+                   canvas.width = width;
+                   canvas.height = height;
+                   const ctx = canvas.getContext("2d");
+                   if(ctx) {
+                      ctx.drawImage(img, 0, 0, width, height);
+                      resolve(canvas.toDataURL("image/jpeg", 0.4));
+                   } else {
+                      resolve("");
+                   }
+               };
+               img.onerror = () => resolve("");
+               if(ev.target?.result) {
+                 img.src = ev.target.result as string;
+               } else resolve("");
+            };
+            reader.onerror = () => resolve("");
+            reader.readAsDataURL(file);
+         });
+       } catch(e) {}
+    }
+
     const messageId = crypto.randomUUID();
     const newMsg = {
       _id: messageId,
@@ -130,6 +175,7 @@ export default function ChatInput({
       senderId: currentUser._id,
       type: type,
       status: "uploading",
+      filePreview: filePreview || null,
       _creationTime: Date.now()
     };
     

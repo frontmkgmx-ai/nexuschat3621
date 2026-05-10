@@ -16,6 +16,7 @@ export function useWebRTC({ callId, userId, userName, isGroup }: UseWebRTCParams
   
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [remoteStreams, setRemoteStreams] = useState<{ [id: string]: MediaStream }>({});
+  const [activeScreenShares, setActiveScreenShares] = useState<Set<string>>(new Set());
   
   const pcRef = useRef<{ [targetId: string]: RTCPeerConnection }>({});
   const localStreamRef = useRef<MediaStream | null>(null);
@@ -248,6 +249,27 @@ export function useWebRTC({ callId, userId, userName, isGroup }: UseWebRTCParams
     socket.on('participant-joined', handleJoined);
     socket.on('participant-left', handleLeft);
 
+    const handleScreenShareStart = (data: any) => {
+       const id = data.userId || data.fromUserId;
+       if (id) {
+         setActiveScreenShares(prev => new Set(prev).add(id));
+       }
+    };
+    
+    const handleScreenShareStop = (data: any) => {
+       const id = data.userId || data.fromUserId;
+       if (id) {
+         setActiveScreenShares(prev => {
+            const next = new Set(prev);
+            next.delete(id);
+            return next;
+         });
+       }
+    };
+
+    socket.on('screen-share-start', handleScreenShareStart);
+    socket.on('screen-share-stop', handleScreenShareStop);
+
     return () => {
       socket.off('webrtc:offer', handleOffer);
       socket.off('webrtc-offer', handleOffer);
@@ -257,6 +279,8 @@ export function useWebRTC({ callId, userId, userName, isGroup }: UseWebRTCParams
       socket.off('webrtc-ice-candidate', handleIceCandidate);
       socket.off('participant-joined', handleJoined);
       socket.off('participant-left', handleLeft);
+      socket.off('screen-share-start', handleScreenShareStart);
+      socket.off('screen-share-stop', handleScreenShareStop);
     };
   }, [socket, getOrCreatePeerConnection, callId, userId]);
 
@@ -308,7 +332,7 @@ export function useWebRTC({ callId, userId, userName, isGroup }: UseWebRTCParams
     }
   }, []);
 
-  const replaceVideoTrack = useCallback(async (newVideoTrack: MediaStreamTrack | null) => {
+  const replaceVideoTrack = useCallback(async (newVideoTrack: MediaStreamTrack | null, maxBitrate?: number, contentHint?: string) => {
     if (!localStreamRef.current) return;
     
     // Stop old video tracks
@@ -318,6 +342,10 @@ export function useWebRTC({ callId, userId, userName, isGroup }: UseWebRTCParams
     });
 
     if (newVideoTrack) {
+      if (contentHint && 'contentHint' in newVideoTrack) {
+        // @ts-ignore
+        newVideoTrack.contentHint = contentHint;
+      }
       localStreamRef.current.addTrack(newVideoTrack);
     }
 
@@ -328,9 +356,22 @@ export function useWebRTC({ callId, userId, userName, isGroup }: UseWebRTCParams
       const typedPc = pc as RTCPeerConnection;
       const videoSender = typedPc.getSenders().find(s => s.track && s.track.kind === 'video');
       if (videoSender) {
-        videoSender.replaceTrack(newVideoTrack);
+        videoSender.replaceTrack(newVideoTrack).then(() => {
+          if (maxBitrate && newVideoTrack) {
+             const params = videoSender.getParameters();
+             if (!params.encodings) params.encodings = [{}];
+             params.encodings[0].maxBitrate = maxBitrate;
+             videoSender.setParameters(params).catch(e => console.error("Could not set maxBitrate", e));
+          }
+        });
       } else if (newVideoTrack) {
-        typedPc.addTrack(newVideoTrack, localStreamRef.current!);
+        const sender = typedPc.addTrack(newVideoTrack, localStreamRef.current!);
+        if (maxBitrate) {
+           const params = sender.getParameters();
+           if (!params.encodings) params.encodings = [{}];
+           params.encodings[0].maxBitrate = maxBitrate;
+           sender.setParameters(params).catch(e => console.error("Could not set maxBitrate", e));
+        }
       }
     });
   }, []);
@@ -352,6 +393,7 @@ export function useWebRTC({ callId, userId, userName, isGroup }: UseWebRTCParams
     isConnected,
     localStream,
     remoteStreams,
+    activeScreenShares,
     startLocalStream,
     replaceVideoTrack,
     connectSocket,

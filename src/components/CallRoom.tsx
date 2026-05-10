@@ -153,6 +153,7 @@ export default function CallRoom({ currentUser, conversation, callType, onEndCal
     isConnected, 
     localStream, 
     remoteStreams, 
+    activeScreenShares,
     startLocalStream,
     replaceVideoTrack,
     connectSocket, 
@@ -175,6 +176,7 @@ export default function CallRoom({ currentUser, conversation, callType, onEndCal
   // Settings State
   const [showSettings, setShowSettings] = useState(false);
   const [audioQuality, setAudioQuality] = useState<'low' | 'normal' | 'ultra' | 'lossless'>('normal');
+  const [screenQuality, setScreenQuality] = useState<'720p30' | '720p60' | '1080p30' | '1080p60'>('1080p30');
   const [noiseSuppression, setNoiseSuppression] = useState(true);
   const [callVolume, setCallVolume] = useState(1);
   const [selectedMic, setSelectedMic] = useState<string>('default');
@@ -339,6 +341,37 @@ export default function CallRoom({ currentUser, conversation, callType, onEndCal
     }
   };
 
+  const getScreenConstraints = (quality: string) => {
+    switch (quality) {
+      case '720p30': return { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } };
+      case '720p60': return { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 60 } };
+      case '1080p30': return { width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } };
+      case '1080p60': return { width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 60 } };
+      default: return { width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } };
+    }
+  };
+
+  const getScreenBitrate = (quality: string) => {
+     switch (quality) {
+       case '720p30': return 1000000;
+       case '720p60': return 2000000;
+       case '1080p30': return 3000000;
+       case '1080p60': return 5000000;
+       default: return 3000000;
+     }
+  };
+
+  // Effect to change quality while sharing
+  useEffect(() => {
+    if (isScreenSharing && screenStreamRef.current) {
+      const track = screenStreamRef.current.getVideoTracks()[0];
+      if (track && track.applyConstraints) {
+        track.applyConstraints(getScreenConstraints(screenQuality)).catch(e => console.error("Could not apply screen constraints", e));
+        replaceVideoTrack(track, getScreenBitrate(screenQuality), 'detail');
+      }
+    }
+  }, [screenQuality, isScreenSharing]);
+
   const toggleScreenShare = async () => {
     if (!isScreenSharing) {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
@@ -347,7 +380,7 @@ export default function CallRoom({ currentUser, conversation, callType, onEndCal
       }
       try {
         const screenStream = await navigator.mediaDevices.getDisplayMedia({ 
-          video: { width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 60 } },
+          video: getScreenConstraints(screenQuality),
           audio: true
         });
         screenStreamRef.current = screenStream;
@@ -360,7 +393,7 @@ export default function CallRoom({ currentUser, conversation, callType, onEndCal
           localVideoRef.current.srcObject = screenStream;
         }
         
-        replaceVideoTrack(screenStream.getVideoTracks()[0]);
+        replaceVideoTrack(screenStream.getVideoTracks()[0], getScreenBitrate(screenQuality), 'detail');
         await controls.startScreenShare();
         setIsScreenSharing(true);
       } catch (err: any) {
@@ -473,10 +506,12 @@ export default function CallRoom({ currentUser, conversation, callType, onEndCal
     gridRows = 'grid-rows-4 md:grid-rows-3';
   }
 
+  const screenSharingParticipant = participants.find(p => activeScreenShares.has(p.id) || (p.id === currentUser._id && isScreenSharing));
+
   return (
     <div className="fixed inset-0 z-50 bg-[#0A0A0A] flex flex-col font-sans">
-      <div className="flex items-center justify-between px-6 py-4 sm:py-6 text-white absolute top-0 inset-x-0 z-50 bg-gradient-to-b from-[#0A0A0A] to-transparent">
-        <button onClick={() => setIsMinimized(true)} className="p-2 -ml-2 rounded-full hover:bg-white/10 transition backdrop-blur-md">
+      <div className="flex items-center justify-between px-6 py-4 sm:py-6 text-white absolute top-0 inset-x-0 z-50 bg-gradient-to-b from-[#0A0A0A] to-transparent pointer-events-none">
+        <button onClick={() => setIsMinimized(true)} className="pointer-events-auto p-2 -ml-2 rounded-full hover:bg-white/10 transition backdrop-blur-md">
           <ChevronDown className="w-7 h-7" />
         </button>
         <div className="text-lg font-semibold flex items-center gap-2 drop-shadow-md">
@@ -490,7 +525,7 @@ export default function CallRoom({ currentUser, conversation, callType, onEndCal
              </span>
            )}
         </div>
-        <div className="flex gap-3">
+        <div className="flex gap-3 pointer-events-auto">
           <button onClick={() => setShowSettings(true)} className="p-2 rounded-full hover:bg-white/10 transition text-zinc-300 backdrop-blur-md">
             <Settings2 className="w-5 h-5" />
           </button>
@@ -498,11 +533,28 @@ export default function CallRoom({ currentUser, conversation, callType, onEndCal
       </div>
 
       <div className={`flex-1 w-full mx-auto flex items-center justify-center pt-20 sm:pt-24 pb-32 sm:pb-36 px-4`}>
-        <div className={`w-full max-w-[1920px] h-full lg:w-[80%] lg:h-[80%] grid ${gridCols} ${gridRows} gap-4 sm:gap-6 overflow-hidden`}>
-          {remoteUsers.map((p, i) => (
-            <ParticipantView key={p.id} participant={p} volume={callVolume} />
-          ))}
-          <ParticipantView participant={localUser} isLocal={true} />
+        <div className={`w-full max-w-[1920px] h-full ${screenSharingParticipant ? 'flex flex-col lg:flex-row gap-4' : `grid ${gridCols} ${gridRows} gap-4 sm:gap-6 lg:w-[80%] lg:h-[80%]`} overflow-hidden`}>
+          {screenSharingParticipant ? (
+             <>
+               <div className="flex-1 min-h-[40vh] bg-black rounded-2xl overflow-hidden relative border border-zinc-800 shadow-2xl">
+                 <ParticipantView participant={screenSharingParticipant} isLocal={screenSharingParticipant.id === currentUser._id} volume={screenSharingParticipant.id === currentUser._id ? 0 : callVolume} />
+               </div>
+               <div className="flex shrink-0 w-full lg:w-64 lg:flex-col gap-4 overflow-x-auto lg:overflow-y-auto pb-4 lg:pb-0 scrollbar-hide">
+                  {participants.filter(p => p.id !== screenSharingParticipant.id).map(p => (
+                     <div key={p.id} className="w-40 lg:w-full shrink-0 aspect-video lg:aspect-auto lg:h-[140px] rounded-xl overflow-hidden border border-zinc-800 bg-zinc-900">
+                       <ParticipantView participant={p} isLocal={p.id === currentUser._id} volume={callVolume} />
+                     </div>
+                  ))}
+               </div>
+             </>
+          ) : (
+            <>
+              {remoteUsers.map((p, i) => (
+                <ParticipantView key={p.id} participant={p} volume={callVolume} />
+              ))}
+              <ParticipantView participant={localUser} isLocal={true} />
+            </>
+          )}
         </div>
       </div>
 
@@ -572,6 +624,20 @@ export default function CallRoom({ currentUser, conversation, callType, onEndCal
                     onChange={e => setCallVolume(parseFloat(e.target.value))}
                     className="w-full h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer" 
                   />
+               </div>
+
+               <div>
+                  <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2 block">Qualidade do Compartilhamento</label>
+                  <select 
+                    value={screenQuality} 
+                    onChange={e => setScreenQuality(e.target.value as any)}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-sm text-zinc-100 outline-none focus:border-indigo-500"
+                  >
+                    <option value="720p30">720p a 30 FPS</option>
+                    <option value="720p60">720p a 60 FPS</option>
+                    <option value="1080p30">1080p a 30 FPS</option>
+                    <option value="1080p60">1080p a 60 FPS</option>
+                  </select>
                </div>
 
                <div>

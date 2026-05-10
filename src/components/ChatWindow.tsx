@@ -193,13 +193,20 @@ const MessageBubble = React.memo(({
               {hasFile ? (
                  <div className={justMedia ? "" : "mb-1"}>
                    {msg.status === "uploading" ? (
-                     <div className="flex flex-col gap-2 mt-1 min-w-[120px] p-2">
-                       <div className="flex items-center gap-2 text-sm opacity-90 font-medium">
-                         <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                         Enviando...
-                       </div>
-                       <div className="w-full bg-black/20 rounded-full h-1.5 overflow-hidden">
-                         <div className="bg-white/80 h-full rounded-full transition-all duration-300 ease-out" style={{ width: `${uploadProgress || 0}%` }}></div>
+                     <div className="relative">
+                       {msg.filePreview && (
+                         <div className="mb-2 relative rounded-xl overflow-hidden aspect-square max-w-[200px] w-full bg-zinc-900 border border-white/10 group">
+                           <img src={msg.filePreview} alt="preview" className="w-full h-full object-cover blur-sm opacity-50 transition-opacity" />
+                         </div>
+                       )}
+                       <div className={`flex flex-col gap-2 mt-1 min-w-[120px] p-2 ${msg.filePreview ? 'absolute inset-0 items-center justify-center bg-black/40 rounded-xl' : ''}`}>
+                         <div className="flex items-center gap-2 text-sm opacity-90 font-medium text-white drop-shadow-md">
+                           <svg className="animate-spin h-4 w-4 drop-shadow-lg" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                           Enviando...
+                         </div>
+                         <div className={`w-full bg-black/40 rounded-full h-1.5 overflow-hidden ${msg.filePreview ? 'max-w-[80%] mx-auto shadow-md border border-white/10' : ''}`}>
+                           <div className="bg-white h-full rounded-full transition-all duration-300 ease-out" style={{ width: `${uploadProgress || 0}%` }}></div>
+                         </div>
                        </div>
                      </div>
                    ) : msg.status === "failed" ? (
