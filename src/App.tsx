@@ -124,14 +124,6 @@ export default function App() {
           timeout = setTimeout(setIdle, 5 * 60 * 1000); // 5 mins idle
         };
 
-        const roleRef = ref(rtdb, `users/${currentUser._id}/role`);
-        onValue(roleRef, (snapshot) => {
-          const role = snapshot.val();
-          if (role) {
-            updateDoc(doc(db, "users", currentUser._id), { role }).catch(() => {});
-          }
-        });
-
         window.addEventListener("mousemove", resetIdleTimer);
         window.addEventListener("keydown", resetIdleTimer);
         window.addEventListener("touchstart", resetIdleTimer);

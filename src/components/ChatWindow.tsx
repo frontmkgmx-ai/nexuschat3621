@@ -644,7 +644,7 @@ export default function ChatWindow({
           <div className="flex flex-col justify-center min-w-0 flex-1">
             <div className="flex items-center gap-1.5 font-semibold text-zinc-100 truncate text-[14px] sm:text-[15px]">
               <span className="truncate">{conversation.isGroup ? (conversation.name || "Grupo") : (conversation.otherUser?.username || conversation.otherUser?.phoneNumber || "Usuário")}</span>
-              {(conversation.isGroup && conversation.isVerified) || (!conversation.isGroup && conversation.otherUser?.role === 'admin') ? (
+              {(conversation.isGroup && conversation.isVerified) || (!conversation.isGroup && (conversation.otherUser?.role === 'admin' || conversation.otherUser?.role === 'AdminUser')) ? (
                 <BadgeCheck className="w-4 h-4 text-indigo-400 shrink-0" />
               ) : null}
             </div>
@@ -730,7 +730,7 @@ export default function ChatWindow({
         <div ref={messagesEndRef} />
       </div>
 
-      {(!conversation.isCommunityChannel || conversation.admins?.includes(currentUser._id) || currentUser.role === 'admin') ? (
+      {(!conversation.isCommunityChannel || conversation.admins?.includes(currentUser._id) || currentUser.role === 'admin' || currentUser.role === 'AdminUser') ? (
         <ChatInput 
           currentUser={currentUser} 
           conversation={conversation} 

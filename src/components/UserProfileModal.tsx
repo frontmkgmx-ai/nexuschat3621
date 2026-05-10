@@ -82,6 +82,12 @@ export default function UserProfileModal({ userId, onClose, currentUserId }: { u
                    {(user.settings?.twoFactorAuth || user._id === currentUserId) && (
                        <ShieldCheck className="w-5 h-5 text-indigo-400" title="Conta Verificada" />
                    )}
+                   {(user.role === 'admin' || user.role === 'AdminUser') && (
+                       <div className="ml-2 bg-gradient-to-r from-red-500/20 to-red-600/20 border border-red-500/30 text-red-400 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 shadow-sm">
+                          <ShieldCheck className="w-3.5 h-3.5" />
+                          <span>Admin</span>
+                       </div>
+                   )}
                 </div>
                 <p className="text-zinc-400 text-sm font-medium">{user.status || "Nenhum status no momento."}</p>
                 

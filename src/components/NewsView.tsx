@@ -120,6 +120,17 @@ export default function NewsView() {
           <div className="absolute -left-2 top-0 w-4 h-4 rounded-full bg-[#1e1f22] border-2 border-[#2B2D31] group-hover:border-indigo-500 transition-colors" />
           <div className="flex items-center gap-2 mb-2 text-zinc-500 group-hover:text-indigo-400 transition-colors">
             <Sparkles className="w-4 h-4" />
+            <h3 className="font-semibold text-zinc-200">Autenticação Totalmente Renovada</h3>
+          </div>
+          <p className="text-sm text-zinc-400 leading-relaxed max-w-2xl">
+            - <strong>Layout Inteligente e Profissional:</strong> A tela de login, o cadastro do SMS e a construção do seu Perfil foram reescritas com fluidez da tecnologia Framer Motion e ícones super imersivos. Mais moderno, responsivo, e rápido.
+            - <strong>Feedbacks em Tela:</strong> Telas informativas e loadings animados, te avisando momento a momento para garantir clareza no app inteiro. Autenticar sua conta via Google e número de telefone acabou de se tornar algo fenomenal e fácil.
+          </p>
+        </div>
+        <div className="relative pl-8 border-l border-[#2B2D31] group">
+          <div className="absolute -left-2 top-0 w-4 h-4 rounded-full bg-[#1e1f22] border-2 border-[#2B2D31] group-hover:border-indigo-500 transition-colors" />
+          <div className="flex items-center gap-2 mb-2 text-zinc-500 group-hover:text-indigo-400 transition-colors">
+            <Sparkles className="w-4 h-4" />
             <h3 className="font-semibold text-zinc-200">Comunidades Totalmente Funcionais</h3>
           </div>
           <p className="text-sm text-zinc-400 leading-relaxed max-w-2xl">

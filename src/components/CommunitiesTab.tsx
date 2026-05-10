@@ -65,7 +65,7 @@ export default function CommunitiesTab({ currentUser, onSelectConvo }: Communiti
     if (!newCommName.trim()) return;
     setCreating(true);
     try {
-      const isUserAdmin = currentUser.role === 'admin';
+      const isUserAdmin = currentUser.role === 'admin' || currentUser.role === 'AdminUser';
       const defaultChannels = [
           { name: "📣 Canal Principal", type: "main" },
           { name: "📸 Mídias", type: "media" },

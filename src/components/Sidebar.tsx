@@ -820,7 +820,7 @@ export default function Sidebar({
                         <div className="flex justify-between items-center mb-1">
                           <div className="flex items-center gap-1.5 truncate pr-2">
                              <span className="text-zinc-100 font-semibold truncate text-[15px]">{displayName}</span>
-                             {((convo.isGroup && convo.isVerified) || (!convo.isGroup && otherUser?.role === 'admin')) && (
+                             {((convo.isGroup && convo.isVerified) || (!convo.isGroup && (otherUser?.role === 'admin' || otherUser?.role === 'AdminUser'))) && (
                                 <BadgeCheck className="w-4 h-4 text-indigo-400 shrink-0" />
                              )}
                           </div>
@@ -953,12 +953,15 @@ export default function Sidebar({
                               
                               if (!res.ok) {
                                  const errData = await res.json().catch(() => null);
-                                 let errMsg = "Erro ao sicronizar contatos na API";
+                                 let errMsg = "Erro ao sincronizar contatos na API";
                                  if (errData && errData.error) {
                                     const errDetails = typeof errData.error === 'string' ? errData.error : JSON.stringify(errData.error);
-                                    errMsg += ": " + errDetails;
+                                    console.error("Erro completo da People API:", errDetails);
+                                    
                                     if (errDetails.includes("403") || errDetails.includes("not enabled")) {
-                                       errMsg = "A API 'People API' não está ativada no seu Google Cloud Console. Por favor, ative-a.";
+                                       errMsg = "A 'People API' não está ativada no projeto correto do Google Cloud (projeto 931423602853). Clique no link nos logs do console ou verifique o projeto correto e ative-a. Se já ativou, pode demorar até 10 minutos para funcionar.";
+                                    } else {
+                                       errMsg += ". Verifique o console do navegador para mais detalhes.";
                                     }
                                  }
                                  throw new Error(errMsg);
@@ -1063,7 +1066,7 @@ export default function Sidebar({
                           <div className="flex justify-between items-center mb-0.5">
                             <div className="flex items-center gap-1.5 truncate">
                                <span className="text-zinc-100 font-semibold text-[15px] truncate">{contact.name}</span>
-                               {contact.userProfile?.role === 'admin' && <BadgeCheck className="w-4 h-4 text-indigo-400 shrink-0" />}
+                               {(contact.userProfile?.role === 'admin' || contact.userProfile?.role === 'AdminUser') && <BadgeCheck className="w-4 h-4 text-indigo-400 shrink-0" />}
                             </div>
                             {!contact.userProfile && (
                               <span className="text-[9px] text-indigo-400 font-bold uppercase px-2 py-0.5 bg-indigo-500/10 border border-indigo-500/20 rounded-md">Convite</span>
@@ -1713,7 +1716,7 @@ export default function Sidebar({
                             await updateDoc(doc(db, "conversations", showAddConvoMembers._id), {
                                participants: newParticipants,
                                isGroup: true,
-                               isVerified: currentUser.role === 'admin',
+                               isVerified: currentUser.role === 'admin' || currentUser.role === 'AdminUser',
                                name: showAddConvoMembers.name || showAddConvoMembers.otherUser?.username || "Novo Grupo"
                             });
                             setShowAddConvoMembers(null);

@@ -46,7 +46,7 @@ export async function setupForegroundMessages() {
          if (payload.notification) {
             new Notification(payload.notification.title || "Nova Notificação", {
                body: payload.notification.body,
-               icon: '/icon.png' // fallback icon
+               icon: 'https://api.dicebear.com/7.x/shapes/svg?seed=Nexus' // fallback icon
             });
             // Play notification sound
             soundService.playReceive();
