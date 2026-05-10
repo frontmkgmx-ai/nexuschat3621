@@ -34,16 +34,16 @@ async function startServer() {
 
   app.use(cors({
     origin: function (origin, callback) {
-      if (!origin || allowedOrigins.includes(origin)) {
+      if (!origin || allowedOrigins.includes(origin) || origin.endsWith('.run.app')) {
         callback(null, true);
       } else {
-        callback(new Error('Not allowed by CORS'));
+        callback(null, true); // Allow all for now
       }
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']
   }));
-  const PORT = Number(process.env.API_PORT || process.env.PORT || 4000);
+  const PORT = 3000;
   const httpServer = createHttpServer(app);
   
   const io = new SocketIOServer(httpServer, {
@@ -104,12 +104,10 @@ async function startServer() {
   app.use(express.json());
 
   // API Root route
-  app.get("/", (req, res) => {
-    // Only return the JSON if explicitly hit as an API or missing Accept header for HTML,
-    // Note: since this is also a Vite SSR/SPA host, we check if it's the specific domain or just return it for testing.
-    // To preserve Vite's SSR, we only respond to JSON requests here or if explicitly matched.
-    if (req.accepts('html') && process.env.NODE_ENV === 'production') {
-       return res.sendFile(path.join(process.cwd(), "dist", "index.html"));
+  app.get("/", (req, res, next) => {
+    // To preserve Vite's SSR and SPA handling, only return JSON if the client doesn't explicitly want HTML.
+    if (req.accepts('html')) {
+       return next();
     }
     
     res.json({

@@ -8,14 +8,41 @@ import { rtdb, db, auth } from "./lib/firebase";
 import { ref, set, onDisconnect, onValue } from "firebase/database";
 import { doc, getDoc, setDoc, updateDoc, onSnapshot, collection, query, orderBy, limit, arrayUnion } from "firebase/firestore";
 import { requestNotificationPermission, setupForegroundMessages, showBrowserNotification } from "./services/fcm";
+import { useNexusNative } from "./hooks/useNexusNative";
 
 import { Toaster, toast } from 'sonner';
 
 export default function App() {
+  const { isNative } = useNexusNative();
   const [currentUser, setCurrentUser] = useState<any>(() => {
-    const saved = sessionStorage.getItem("chat_user");
-    return saved ? JSON.parse(saved) : null;
+    try {
+      const saved = localStorage.getItem("chat_user_v2");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.expiresAt && Date.now() < parsed.expiresAt) {
+          return parsed.user;
+        } else {
+          localStorage.removeItem("chat_user_v2");
+        }
+      }
+    } catch (e) {}
+    
+    // Fallback for old session users
+    const oldSaved = sessionStorage.getItem("chat_user");
+    if (oldSaved) {
+       const user = JSON.parse(oldSaved);
+       const expiresAt = Date.now() + 7 * 24 * 60 * 60 * 1000;
+       localStorage.setItem("chat_user_v2", JSON.stringify({ user, expiresAt }));
+       sessionStorage.removeItem("chat_user");
+       return user;
+    }
+    return null;
   });
+
+  const saveUserLocally = (user: any) => {
+    const expiresAt = Date.now() + 7 * 24 * 60 * 60 * 1000; // 7 days
+    localStorage.setItem("chat_user_v2", JSON.stringify({ user, expiresAt }));
+  };
   const [selectedConvo, setSelectedConvo] = useState<any>(null);
   const [publicProfileUser, setPublicProfileUser] = useState<any>(null);
   const [isFirebaseReady, setIsFirebaseReady] = useState(false);
@@ -88,7 +115,7 @@ export default function App() {
           if (docSnap.exists()) {
             setCurrentUser((prev: any) => {
               const updated = { ...prev, ...docSnap.data() };
-              sessionStorage.setItem("chat_user", JSON.stringify(updated));
+              saveUserLocally(updated);
               return updated;
             });
           }
@@ -176,7 +203,7 @@ export default function App() {
   }, [currentUser?._id]);
 
   const handleLogin = (user: any) => {
-    sessionStorage.setItem("chat_user", JSON.stringify(user));
+    saveUserLocally(user);
     setCurrentUser(user);
   };
 

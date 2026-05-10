@@ -30,7 +30,7 @@ import {
   CheckCircle2,
   Loader2,
   MessageSquare,
-  Trash2, Archive, Download, FileText, UserPlus as AddUserIcon, MoreVertical, BadgeCheck
+  Trash2, Archive, Download, FileText, UserPlus as AddUserIcon, MoreVertical, BadgeCheck, QrCode
 } from "lucide-react";
 import { format } from "date-fns";
 import { parsePhoneNumber, getCountryCallingCode, CountryCode, getCountries } from "libphonenumber-js";
@@ -45,8 +45,10 @@ import NewsView from "./NewsView";
 import Inpage from "./Inpage";
 import TermsAndPrivacy from "./TermsAndPrivacy";
 import CommunitiesTab from "./CommunitiesTab";
+import ScanQRCodeView from "./ScanQRCodeView";
+import { useNexusNative } from "../hooks/useNexusNative";
 
-type InternalTab = "CHATS" | "CONTACTS" | "GROUPS" | "SETTINGS" | "PROFILE" | "INPAGE" | "COMMUNITIES" | "NEWS";
+type InternalTab = "CHATS" | "CONTACTS" | "GROUPS" | "SETTINGS" | "PROFILE" | "INPAGE" | "COMMUNITIES" | "NEWS" | "QRCODE";
 
 import ConfirmModal from "./ConfirmModal";
 
@@ -65,6 +67,7 @@ export default function Sidebar({
   isMobileHidden?: boolean;
   onOpenProfile?: (userId: string) => void;
 }) {
+  const { isNative } = useNexusNative();
   const [activeTab, setActiveTab] = useState<InternalTab>("CHATS");
   const [settingsView, setSettingsView] = useState<"MENU" | "ACCOUNT" | "PRIVACY" | "AUDIO_VIDEO" | "BACKUPS" | "TERMS">("MENU");
   const [confirmState, setConfirmState] = useState<{isOpen: boolean, title: string, message: string, onConfirm: () => void}>({
@@ -702,6 +705,9 @@ export default function Sidebar({
         </div>
 
         <div className="flex flex-col gap-4 w-full px-3 mt-auto">
+          {(!isNative && window.innerWidth <= 768) && (
+            <NavRailItem icon={<QrCode className="w-6 h-6" />} label="Scan QR" active={activeTab === "QRCODE"} onClick={() => setActiveTab("QRCODE")} />
+          )}
           <NavRailItem icon={<Settings className="w-6 h-6" />} label="Settings" active={activeTab === "SETTINGS"} onClick={() => setActiveTab("SETTINGS")} />
         </div>
       </div>
@@ -736,6 +742,9 @@ export default function Sidebar({
           <MobileNavItem icon={<CircleDashed className="w-5 h-5" />} active={activeTab === "INPAGE"} onClick={() => setActiveTab("INPAGE")} />
           <MobileNavItem icon={<Globe className="w-5 h-5" />} active={activeTab === "COMMUNITIES"} onClick={() => setActiveTab("COMMUNITIES")} />
           <MobileNavItem icon={<Newspaper className="w-5 h-5" />} active={activeTab === "NEWS"} onClick={() => setActiveTab("NEWS")} />
+          {(!isNative && window.innerWidth <= 768) && (
+            <MobileNavItem icon={<QrCode className="w-5 h-5" />} active={activeTab === "QRCODE"} onClick={() => setActiveTab("QRCODE")} />
+          )}
           <MobileNavItem icon={<Settings className="w-5 h-5" />} active={activeTab === "SETTINGS"} onClick={() => setActiveTab("SETTINGS")} />
         </div>
       </div>
@@ -1698,6 +1707,10 @@ export default function Sidebar({
 
           {activeTab === "COMMUNITIES" && (
             <CommunitiesTab currentUser={currentUser} onSelectConvo={onSelectConvo} />
+          )}
+
+          {activeTab === "QRCODE" && (!isNative && window.innerWidth <= 768) && (
+            <ScanQRCodeView currentUser={currentUser} />
           )}
         </AnimatePresence>
       </div>

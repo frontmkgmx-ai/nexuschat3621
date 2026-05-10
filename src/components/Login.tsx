@@ -1,13 +1,16 @@
 import React, { useState, useEffect } from "react";
 import { parsePhoneNumber, getCountries, getCountryCallingCode, CountryCode } from "libphonenumber-js";
-import { Camera, ShieldCheck, Loader2, Phone as PhoneIcon, KeyRound, ArrowLeft, ArrowRight, User } from "lucide-react";
-import { db, auth } from "../lib/firebase";
-import { collection, query, where, getDocs, setDoc, doc } from "firebase/firestore";
+import { Camera, ShieldCheck, Loader2, Phone as PhoneIcon, KeyRound, ArrowLeft, ArrowRight, User, QrCode } from "lucide-react";
+import { db, auth, rtdb } from "../lib/firebase";
+import { collection, query, where, getDocs, setDoc, doc, getDoc } from "firebase/firestore";
 import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
+import { ref, onValue, set, remove } from "firebase/database";
 import { motion, AnimatePresence } from "motion/react";
 import { sanitizeUrl } from "../services/fileApi";
+import { useNexusNative } from "../hooks/useNexusNative";
+import { QRCodeSVG } from "qrcode.react";
 
-type LoginStep = "PHONE" | "OTP" | "PROFILE";
+type LoginStep = "PHONE" | "OTP" | "PROFILE" | "QR_LOGIN";
 
 export default function Login({ onLogin }: { onLogin: (user: any) => void }) {
   const [step, setStep] = useState<LoginStep>("PHONE");
@@ -27,6 +30,9 @@ export default function Login({ onLogin }: { onLogin: (user: any) => void }) {
   const [googleLinked, setGoogleLinked] = useState(false);
   const [googleEmail, setGoogleEmail] = useState<string | null>(null);
 
+  const { isNative } = useNexusNative();
+  const [qrSessionId, setQrSessionId] = useState<string>("");
+
   useEffect(() => {
     // Attempt to auto-detect country
     fetch("https://ipapi.co/json/")
@@ -36,6 +42,38 @@ export default function Login({ onLogin }: { onLogin: (user: any) => void }) {
       })
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    let unsub: () => void;
+    if (step === "QR_LOGIN") {
+      const sessionId = Math.random().toString(36).substring(2) + Date.now().toString(36);
+      setQrSessionId(sessionId);
+      
+      const sessionRef = ref(rtdb, `qrLogins/${sessionId}`);
+      set(sessionRef, { status: "waiting", timestamp: Date.now() });
+
+      unsub = onValue(sessionRef, async (snapshot) => {
+        const data = snapshot.val();
+        if (data && data.status === "success" && data.userId) {
+          // fetch user doc
+          try {
+            const userSnap = await getDoc(doc(db, "users", data.userId));
+            if (userSnap.exists()) {
+               await remove(sessionRef); // clean up
+               onLogin(userSnap.data());
+            }
+          } catch(e) {
+             console.error("Erro ao buscar usario logado no QR", e);
+             setError("Erro ao autenticar. Tente de novo.");
+          }
+        }
+      });
+    }
+
+    return () => {
+      if (unsub) unsub();
+    }
+  }, [step]);
 
   const handlePhoneSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -304,6 +342,66 @@ export default function Login({ onLogin }: { onLogin: (user: any) => void }) {
                   )}
                 </button>
               </form>
+
+              { (isNative || window.innerWidth > 768) && (
+                <div className="mt-8 pt-6 border-t border-zinc-800/80">
+                  <p className="text-zinc-500 text-xs text-center mb-4 font-medium uppercase tracking-wider">Acesso Simplificado</p>
+                  <button
+                    onClick={() => setStep("QR_LOGIN")}
+                    className="w-full flex items-center justify-center gap-3 bg-[#111214] text-zinc-200 border border-zinc-800 py-3 px-4 rounded-xl font-medium hover:bg-[#1e1f22] transition-colors"
+                  >
+                    <QrCode className="w-5 h-5 text-indigo-400" />
+                    Fazer Login Escaneando QR Code
+                  </button>
+                </div>
+              )}
+            </motion.div>
+          )}
+
+          {step === "QR_LOGIN" && (
+            <motion.div
+              key="QR_LOGIN"
+              variants={variants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              className="flex flex-col items-center pb-2"
+            >
+              <div className="w-full mb-6 flex flex-col items-start text-left">
+                <button 
+                  onClick={() => setStep("PHONE")}
+                  className="p-1 -ml-1 mb-3 text-zinc-500 hover:text-white transition-colors bg-zinc-800/30 rounded-lg hover:bg-zinc-800"
+                >
+                  <ArrowLeft className="w-5 h-5" />
+                </button>
+                <h2 className="text-xl font-display font-bold text-zinc-100 mb-1.5 flex items-center gap-2">
+                  <QrCode className="w-5 h-5 text-indigo-400" /> Login Rápido
+                </h2>
+                <p className="text-zinc-400 text-sm leading-relaxed">
+                  Abra o Nexus Mobile, vá em Configurações &gt; Scan QR e aponte para a tela.
+                </p>
+              </div>
+
+              {qrSessionId ? (
+                <div className="bg-white p-4 rounded-2xl shadow-xl">
+                  <QRCodeSVG value={JSON.stringify({type: "login", sessionId: qrSessionId})} size={200} />
+                </div>
+              ) : (
+                <div className="w-[200px] h-[200px] flex items-center justify-center">
+                  <Loader2 className="w-8 h-8 animate-spin text-zinc-500" />
+                </div>
+              )}
+
+              {error && (
+                <motion.p 
+                  initial={{ opacity: 0, height: 0 }} 
+                  animate={{ opacity: 1, height: 'auto' }} 
+                  className="mt-6 w-full text-red-400 text-xs text-center font-medium bg-red-500/10 border border-red-500/20 py-2.5 px-3 rounded-xl"
+                >
+                  {error}
+                </motion.p>
+              )}
             </motion.div>
           )}
 
