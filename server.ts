@@ -43,7 +43,7 @@ async function startServer() {
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']
   }));
-  const PORT = process.env.API_PORT || process.env.PORT || 4000;
+  const PORT = Number(process.env.API_PORT || process.env.PORT || 4000);
   const httpServer = createHttpServer(app);
   
   const io = new SocketIOServer(httpServer, {

@@ -1,6 +1,6 @@
 import { toast } from 'sonner';
 import React, { useEffect, useRef, useState } from 'react';
-import { PhoneOff, Mic, MicOff, Camera, CameraOff, MonitorUp, ChevronDown, Volume2, MessageSquare, Phone, User, Settings2, Activity, Wifi, X } from 'lucide-react';
+import { PhoneOff, Mic, MicOff, Camera, CameraOff, MonitorUp, ChevronDown, Volume2, MessageSquare, Phone, User, Settings2, Activity, Wifi, X, Maximize, Minimize } from 'lucide-react';
 import { useWebRTC } from '../hooks/useWebRTC';
 import { useCallControls } from '../hooks/useCallControls';
 import { sanitizeUrl } from '../services/fileApi';
@@ -172,6 +172,7 @@ export default function CallRoom({ currentUser, conversation, callType, onEndCal
   const [hasVideo, setHasVideo] = useState(callType === 'video');
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   
   // Settings State
   const [showSettings, setShowSettings] = useState(false);
@@ -509,7 +510,7 @@ export default function CallRoom({ currentUser, conversation, callType, onEndCal
   const screenSharingParticipant = participants.find(p => activeScreenShares.has(p.id) || (p.id === currentUser._id && isScreenSharing));
 
   return (
-    <div className="fixed inset-0 z-50 bg-[#0A0A0A] flex flex-col font-sans">
+    <div className={`z-50 bg-[#0A0A0A] flex flex-col font-sans overflow-hidden transition-all duration-300 ${isFullscreen ? 'fixed inset-0' : 'fixed inset-0 md:absolute rounded-tl-2xl'}`}>
       <div className="flex items-center justify-between px-6 py-4 sm:py-6 text-white absolute top-0 inset-x-0 z-50 bg-gradient-to-b from-[#0A0A0A] to-transparent pointer-events-none">
         <button onClick={() => setIsMinimized(true)} className="pointer-events-auto p-2 -ml-2 rounded-full hover:bg-white/10 transition backdrop-blur-md">
           <ChevronDown className="w-7 h-7" />
@@ -526,6 +527,9 @@ export default function CallRoom({ currentUser, conversation, callType, onEndCal
            )}
         </div>
         <div className="flex gap-3 pointer-events-auto">
+          <button onClick={() => setIsFullscreen(!isFullscreen)} className="hidden md:block p-2 rounded-full hover:bg-white/10 transition text-zinc-300 backdrop-blur-md">
+            {isFullscreen ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
+          </button>
           <button onClick={() => setShowSettings(true)} className="p-2 rounded-full hover:bg-white/10 transition text-zinc-300 backdrop-blur-md">
             <Settings2 className="w-5 h-5" />
           </button>
