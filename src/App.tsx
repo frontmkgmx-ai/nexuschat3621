@@ -266,11 +266,11 @@ export default function App() {
 
   return (
     <div 
-      className="h-[100dvh] w-full bg-zinc-950 flex flex-col items-center justify-center p-0 md:p-4 overflow-hidden relative"
+      className={`h-[100dvh] w-full bg-zinc-950 flex flex-col items-center justify-center overflow-hidden relative ${isNative ? 'p-0' : 'p-0 md:p-4'}`}
     >
       <Toaster position="top-center" theme="dark" richColors />
       <div 
-        className="flex w-full h-full max-w-[1600px] bg-zinc-900 md:border md:border-zinc-800 shadow-2xl md:rounded-2xl z-10 overflow-hidden relative"
+        className={`flex w-full h-full bg-zinc-900 z-10 overflow-hidden relative ${isNative ? 'max-w-none border-none rounded-none' : 'max-w-[1600px] md:border md:border-zinc-800 shadow-2xl md:rounded-2xl'}`}
         style={{ WebkitTransform: "translate3d(0,0,0)", transform: "translate3d(0,0,0)" }}
       >
         <Sidebar

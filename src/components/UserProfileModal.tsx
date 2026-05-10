@@ -53,45 +53,61 @@ export default function UserProfileModal({ userId, onClose, currentUserId }: { u
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 bg-black/80 backdrop-blur-sm">
       <div className="absolute inset-0 z-0" onClick={onClose}></div>
       <div className="bg-[#1e1f22] w-full max-w-2xl rounded-3xl overflow-hidden shadow-2xl border border-[#2B2D31] relative z-10 flex flex-col max-h-[90vh]">
-         {/* Banner */}
-         <div className="h-32 sm:h-48 relative shrink-0">
-             <div className="absolute top-4 right-4 z-10">
-                 <button onClick={onClose} className="p-2 bg-black/40 hover:bg-black/60 rounded-full backdrop-blur-md transition-colors text-white">
-                    <X className="w-5 h-5" />
-                 </button>
-             </div>
-             <img src={banner} alt="Banner" className="w-full h-full object-cover" />
-             <div className="absolute inset-0 bg-gradient-to-t from-[#1e1f22] to-transparent"></div>
-         </div>
-
-         <div className="px-6 pb-6 pt-0 relative flex-1 overflow-y-auto custom-scrollbar">
-             <div className="flex justify-between items-end -mt-16 sm:-mt-20 mb-4 relative z-10">
-                 <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-3xl border-4 border-[#1e1f22] overflow-hidden bg-zinc-900 shadow-xl">
-                    <img src={avatar} alt="Avatar" className="w-full h-full object-cover" />
-                 </div>
-                 {user._id !== currentUserId && (
-                   <button className="bg-indigo-500 hover:bg-indigo-600 text-white p-3 rounded-2xl shadow-lg transition-transform hover:scale-105" title="Enviar Mensagem">
-                      <MessageCircle className="w-5 h-5" />
+         <div className="overflow-y-auto custom-scrollbar w-full h-full relative flex flex-col">
+           {/* Banner */}
+           <div className="h-32 sm:h-48 relative shrink-0">
+               <div className="absolute top-4 right-4 z-10">
+                   <button onClick={onClose} className="p-2 bg-black/40 hover:bg-black/60 rounded-full backdrop-blur-md transition-colors text-white">
+                      <X className="w-5 h-5" />
                    </button>
-                 )}
-             </div>
+               </div>
+               <img src={banner} alt="Banner" className="w-full h-full object-cover" />
+               <div className="absolute inset-0 bg-gradient-to-t from-[#1e1f22] to-transparent"></div>
+           </div>
 
-             <div className="bg-[#111214] rounded-2xl p-5 border border-[#2B2D31] mb-6 shadow-inner">
-                <div className="flex items-center gap-2 mb-1">
-                   <h2 className="text-2xl font-bold text-white">{user.username}</h2>
-                   {(user.settings?.twoFactorAuth || user._id === currentUserId) && (
-                       <ShieldCheck className="w-5 h-5 text-indigo-400" title="Conta Verificada" />
+           <div className="px-6 pb-6 pt-0 relative flex-1">
+               <div className="flex justify-between items-end -mt-16 sm:-mt-20 mb-4 relative z-10">
+                   <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-3xl border-4 border-[#1e1f22] overflow-hidden bg-zinc-900 shadow-xl">
+                      <img src={avatar} alt="Avatar" className="w-full h-full object-cover" />
+                   </div>
+                   {user._id !== currentUserId && (
+                     <button className="bg-indigo-500 hover:bg-indigo-600 text-white p-3 rounded-2xl shadow-lg transition-transform hover:scale-105" title="Enviar Mensagem">
+                        <MessageCircle className="w-5 h-5" />
+                     </button>
                    )}
-                   {(user.role === 'admin' || user.role === 'AdminUser') && (
-                       <div className="ml-2 bg-gradient-to-r from-red-500/20 to-red-600/20 border border-red-500/30 text-red-400 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 shadow-sm">
-                          <ShieldCheck className="w-3.5 h-3.5" />
-                          <span>Admin</span>
-                       </div>
-                   )}
-                </div>
-                <p className="text-zinc-400 text-sm font-medium">{user.status || "Nenhum status no momento."}</p>
-                
-                <div className="flex flex-wrap gap-4 mt-6">
+               </div>
+
+               <div className="bg-[#111214] rounded-2xl p-5 border border-[#2B2D31] mb-6 shadow-inner">
+                  <div className="flex items-center gap-2 mb-1">
+                     <h2 className="text-2xl font-bold text-white">{user.username}</h2>
+                     {(user.settings?.twoFactorAuth || user._id === currentUserId) && (
+                         <ShieldCheck className="w-5 h-5 text-indigo-400" title="Conta Verificada" />
+                     )}
+                     {(user.role === 'admin' || user.role === 'AdminUser') && (
+                         <div className="ml-2 bg-gradient-to-r from-red-500/20 to-red-600/20 border border-red-500/30 text-red-400 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 shadow-sm">
+                            <ShieldCheck className="w-3.5 h-3.5" />
+                            <span>Admin</span>
+                         </div>
+                     )}
+                  </div>
+                  <div className="mt-1 mb-3 flex flex-wrap gap-2 text-xs font-medium">
+                     {user.status === 'online' ? (
+                       <span className="text-emerald-400 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> Online</span>
+                     ) : (
+                       <span className="text-zinc-500">Offline</span>
+                     )}
+                     {user.activeSessions && user.activeSessions.length > 0 && (
+                       <span className="text-zinc-400 bg-zinc-800/50 px-2 py-0.5 rounded-md border border-zinc-700/50">
+                         Usando: {Array.from(new Set(user.activeSessions.map((s: any) => 
+                           /Mobile|Android|iPhone/i.test(s.device) ? "Mobile" : 
+                           /App/i.test(s.device) ? "Desktop App" : "Desktop Web"
+                         ))).join(", ")}
+                       </span>
+                     )}
+                  </div>
+                  <p className="text-zinc-400 text-sm font-medium">{user.statusText || "Nenhum status no momento."}</p>
+                  
+                  <div className="flex flex-wrap gap-4 mt-6">
                    <div className="flex items-center gap-2 text-sm text-zinc-300">
                       <Calendar className="w-4 h-4 text-zinc-500" />
                       Membro desde {user.createdAt ? format(new Date(user.createdAt), "MMMM 'de' yyyy") : "Há algum tempo"}
@@ -141,6 +157,7 @@ export default function UserProfileModal({ userId, onClose, currentUserId }: { u
                     </div>
                 </div>
              )}
+         </div>
          </div>
       </div>
     </div>

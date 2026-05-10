@@ -1,5 +1,6 @@
 import { toast } from 'sonner';
 import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { 
   MessageCircle, 
   Search, 
@@ -47,6 +48,7 @@ import TermsAndPrivacy from "./TermsAndPrivacy";
 import CommunitiesTab from "./CommunitiesTab";
 import ScanQRCodeView from "./ScanQRCodeView";
 import { useNexusNative } from "../hooks/useNexusNative";
+import DesktopSettings from "./DesktopSettings";
 
 import WindowsAppView from './WindowsAppView';
 
@@ -1422,6 +1424,18 @@ export default function Sidebar({
           )}
 
           {activeTab === "SETTINGS" && (
+            isNative ? (
+              <motion.div
+                key="settings-native"
+                initial={{ x: 20, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                exit={{ x: 20, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="flex flex-col h-full absolute inset-0 w-full pt-4 bg-zinc-900"
+              >
+                <DesktopSettings onLogout={onLogout} />
+              </motion.div>
+            ) : (
             <motion.div 
               key="settings"
               initial={{ x: 20, opacity: 0 }}
@@ -1703,6 +1717,7 @@ export default function Sidebar({
                 </AnimatePresence>
               </div>
             </motion.div>
+            )
           )}
 
           {activeTab === "NEWS" && (
@@ -1728,7 +1743,7 @@ export default function Sidebar({
       </div>
       )}
 
-      {chatContextMenu && (
+      {chatContextMenu && createPortal(
         <>
           <div className="fixed inset-0 z-50 bg-black/20" onClick={() => setChatContextMenu(null)} onContextMenu={(e) => { e.preventDefault(); setChatContextMenu(null); }} />
           <motion.div 
@@ -1755,10 +1770,10 @@ export default function Sidebar({
                 <Trash2 className="w-4 h-4" /> Excluir Chat
              </button>
           </motion.div>
-        </>
+        </>, document.body
       )}
 
-      {showAddConvoMembers && (
+      {showAddConvoMembers && createPortal(
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
            <motion.div 
              initial={{ opacity: 0, y: 20, scale: 0.95 }}
@@ -1811,16 +1826,18 @@ export default function Sidebar({
                  ))}
               </div>
            </motion.div>
-        </div>
+        </div>, document.body
       )}
 
-      <ConfirmModal
-        isOpen={confirmState.isOpen}
-        title={confirmState.title}
-        message={confirmState.message}
-        onConfirm={confirmState.onConfirm}
-        onCancel={() => setConfirmState(prev => ({ ...prev, isOpen: false }))}
-      />
+      {createPortal(
+        <ConfirmModal
+          isOpen={confirmState.isOpen}
+          title={confirmState.title}
+          message={confirmState.message}
+          onConfirm={confirmState.onConfirm}
+          onCancel={() => setConfirmState(prev => ({ ...prev, isOpen: false }))}
+        />, document.body
+      )}
     </div>
   );
 }
