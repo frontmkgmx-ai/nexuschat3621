@@ -30,7 +30,7 @@ import {
   CheckCircle2,
   Loader2,
   MessageSquare,
-  Trash2, Archive, Download, FileText, UserPlus as AddUserIcon, MoreVertical, BadgeCheck, QrCode
+  Trash2, Archive, Download, FileText, UserPlus as AddUserIcon, MoreVertical, BadgeCheck, QrCode, Monitor
 } from "lucide-react";
 import { format } from "date-fns";
 import { parsePhoneNumber, getCountryCallingCode, CountryCode, getCountries } from "libphonenumber-js";
@@ -48,7 +48,9 @@ import CommunitiesTab from "./CommunitiesTab";
 import ScanQRCodeView from "./ScanQRCodeView";
 import { useNexusNative } from "../hooks/useNexusNative";
 
-type InternalTab = "CHATS" | "CONTACTS" | "GROUPS" | "SETTINGS" | "PROFILE" | "INPAGE" | "COMMUNITIES" | "NEWS" | "QRCODE";
+import WindowsAppView from './WindowsAppView';
+
+type InternalTab = "CHATS" | "CONTACTS" | "GROUPS" | "SETTINGS" | "PROFILE" | "INPAGE" | "COMMUNITIES" | "NEWS" | "QRCODE" | "WINDOWS_APP";
 
 import ConfirmModal from "./ConfirmModal";
 
@@ -702,6 +704,9 @@ export default function Sidebar({
           <NavRailItem icon={<CircleDashed className="w-6 h-6" />} label="Status" active={activeTab === "INPAGE"} onClick={() => setActiveTab("INPAGE")} />
           <NavRailItem icon={<Globe className="w-6 h-6" />} label="Communities" active={activeTab === "COMMUNITIES"} onClick={() => setActiveTab("COMMUNITIES")} />
           <NavRailItem icon={<Newspaper className="w-6 h-6" />} label="News" active={activeTab === "NEWS"} onClick={() => setActiveTab("NEWS")} />
+          {isNative && (
+            <NavRailItem icon={<Monitor className="w-6 h-6" />} label="Windows" active={activeTab === "WINDOWS_APP"} onClick={() => setActiveTab("WINDOWS_APP")} />
+          )}
         </div>
 
         <div className="flex flex-col gap-4 w-full px-3 mt-auto">
@@ -742,6 +747,9 @@ export default function Sidebar({
           <MobileNavItem icon={<CircleDashed className="w-5 h-5" />} active={activeTab === "INPAGE"} onClick={() => setActiveTab("INPAGE")} />
           <MobileNavItem icon={<Globe className="w-5 h-5" />} active={activeTab === "COMMUNITIES"} onClick={() => setActiveTab("COMMUNITIES")} />
           <MobileNavItem icon={<Newspaper className="w-5 h-5" />} active={activeTab === "NEWS"} onClick={() => setActiveTab("NEWS")} />
+          {isNative && (
+            <MobileNavItem icon={<Monitor className="w-5 h-5" />} active={activeTab === "WINDOWS_APP"} onClick={() => setActiveTab("WINDOWS_APP")} />
+          )}
           {(!isNative && window.innerWidth <= 768) && (
             <MobileNavItem icon={<QrCode className="w-5 h-5" />} active={activeTab === "QRCODE"} onClick={() => setActiveTab("QRCODE")} />
           )}
@@ -1707,6 +1715,10 @@ export default function Sidebar({
 
           {activeTab === "COMMUNITIES" && (
             <CommunitiesTab currentUser={currentUser} onSelectConvo={onSelectConvo} />
+          )}
+
+          {activeTab === "WINDOWS_APP" && isNative && (
+            <WindowsAppView />
           )}
 
           {activeTab === "QRCODE" && (!isNative && window.innerWidth <= 768) && (

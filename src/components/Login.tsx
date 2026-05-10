@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { parsePhoneNumber, getCountries, getCountryCallingCode, CountryCode } from "libphonenumber-js";
 import { Camera, ShieldCheck, Loader2, Phone as PhoneIcon, KeyRound, ArrowLeft, ArrowRight, User, QrCode } from "lucide-react";
 import { db, auth, rtdb } from "../lib/firebase";
-import { collection, query, where, getDocs, setDoc, doc, getDoc } from "firebase/firestore";
+import { collection, query, where, getDocs, setDoc, doc, getDoc, arrayUnion, updateDoc } from "firebase/firestore";
 import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 import { ref, onValue, set, remove } from "firebase/database";
 import { motion, AnimatePresence } from "motion/react";
@@ -32,6 +32,7 @@ export default function Login({ onLogin }: { onLogin: (user: any) => void }) {
 
   const { isNative } = useNexusNative();
   const [qrSessionId, setQrSessionId] = useState<string>("");
+  const [qrDataStr, setQrDataStr] = useState<string>("");
 
   useEffect(() => {
     // Attempt to auto-detect country
@@ -44,36 +45,61 @@ export default function Login({ onLogin }: { onLogin: (user: any) => void }) {
   }, []);
 
   useEffect(() => {
-    let unsub: () => void;
-    if (step === "QR_LOGIN") {
-      const sessionId = Math.random().toString(36).substring(2) + Date.now().toString(36);
-      setQrSessionId(sessionId);
-      
-      const sessionRef = ref(rtdb, `qrLogins/${sessionId}`);
-      set(sessionRef, { status: "waiting", timestamp: Date.now() });
+    // Determine initial login step: desktop = QR by default
+    const isDesktop = isNative || !/Mobi|Android/i.test(navigator.userAgent);
+    if (isDesktop && step === "PHONE") {
+      setStep("QR_LOGIN");
+    }
+  }, [isNative, step]);
 
-      unsub = onValue(sessionRef, async (snapshot) => {
-        const data = snapshot.val();
-        if (data && data.status === "success" && data.userId) {
-          // fetch user doc
-          try {
-            const userSnap = await getDoc(doc(db, "users", data.userId));
-            if (userSnap.exists()) {
-               await remove(sessionRef); // clean up
-               onLogin(userSnap.data());
-            }
-          } catch(e) {
-             console.error("Erro ao buscar usario logado no QR", e);
-             setError("Erro ao autenticar. Tente de novo.");
-          }
-        }
-      });
+  useEffect(() => {
+    let unsub: () => void;
+    let timerId: any;
+    
+    const fetchQr = async () => {
+       try {
+         const deviceName = isNative ? "Nexus Desktop App" : /Edg/.test(navigator.userAgent) ? "Edge Browser" : /Chrome/.test(navigator.userAgent) ? "Chrome Browser" : "Desktop Browser";
+         const res = await fetch(`/api/auth/qr?device=${encodeURIComponent(deviceName)}`);
+         const data = await res.json();
+         setQrSessionId(data.sessionId);
+         setQrDataStr(data.qrData);
+
+         // Sub to RTDB for the new sessionId
+         if (unsub) unsub();
+         const sessionRef = ref(rtdb, `qrLogins/${data.sessionId}`);
+         set(sessionRef, { status: "waiting", timestamp: Date.now() });
+
+         unsub = onValue(sessionRef, async (snapshot) => {
+           const val = snapshot.val();
+           if (val && val.status === "success" && val.userId) {
+             try {
+               const userSnap = await getDoc(doc(db, "users", val.userId));
+               if (userSnap.exists()) {
+                  await remove(sessionRef); // clean up
+                  onLogin({ ...userSnap.data(), sessionId: data.sessionId });
+               }
+             } catch(e) {
+                console.error("Erro ao buscar usario logado no QR", e);
+                setError("Erro ao autenticar. Tente de novo.");
+             }
+           }
+         });
+
+       } catch (err) {
+         console.error("Falha ao gerar QR", err);
+       }
+    };
+
+    if (step === "QR_LOGIN") {
+       fetchQr();
+       timerId = setInterval(fetchQr, 5000);
     }
 
     return () => {
       if (unsub) unsub();
+      if (timerId) clearInterval(timerId);
     }
-  }, [step]);
+  }, [step, isNative]);
 
   const handlePhoneSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -224,13 +250,23 @@ export default function Login({ onLogin }: { onLogin: (user: any) => void }) {
         avatarUrl: finalAvatar,
       };
 
+      const newSessionId = "sess_" + Date.now().toString(36) + Math.random().toString(36).substring(2);
+      const deviceInfo = {
+        id: newSessionId,
+        device: isNative ? "Nexus Desktop App" : /Mobi|Android/i.test(navigator.userAgent) ? "Mobile Browser" : "Desktop Browser",
+        lastActive: Date.now()
+      };
+
       if (!isExistingProfile && userId) {
-        await setDoc(doc(db, "users", userId), userData);
+        await setDoc(doc(db, "users", userId), { ...userData, activeSessions: [deviceInfo] });
       } else if (userId) {
         await setDoc(doc(db, "users", userId), userData, { merge: true });
+        await updateDoc(doc(db, "users", userId), {
+          activeSessions: arrayUnion(deviceInfo)
+        });
       }
 
-      onLogin(userData);
+      onLogin({ ...userData, sessionId: newSessionId });
     } catch (err: any) {
       console.error("Profile save error:", err);
       const firestoreError = {
@@ -383,9 +419,9 @@ export default function Login({ onLogin }: { onLogin: (user: any) => void }) {
                 </p>
               </div>
 
-              {qrSessionId ? (
+              {qrSessionId && qrDataStr ? (
                 <div className="bg-white p-4 rounded-2xl shadow-xl">
-                  <QRCodeSVG value={JSON.stringify({type: "login", sessionId: qrSessionId})} size={200} />
+                  <QRCodeSVG value={qrDataStr} size={200} />
                 </div>
               ) : (
                 <div className="w-[200px] h-[200px] flex items-center justify-center">

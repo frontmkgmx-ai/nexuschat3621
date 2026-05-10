@@ -103,6 +103,23 @@ async function startServer() {
 
   app.use(express.json());
 
+  // QR Auth endpoint (rotates strings to prevent frontend generation)
+  app.get("/api/auth/qr", (req, res) => {
+    const sessionId = "qr_" + Date.now().toString(36) + "_" + Math.random().toString(36).substring(2, 10);
+    const deviceName = req.query.device as string || "Desktop Browser";
+    const qrData = JSON.stringify({ 
+        type: "login", 
+        sessionId, 
+        generatedAt: Date.now(),
+        deviceInfo: {
+            id: sessionId,
+            device: deviceName,
+            lastActive: Date.now()
+        }
+    });
+    res.json({ sessionId, qrData });
+  });
+
   // API Root route
   app.get("/", (req, res, next) => {
     // To preserve Vite's SSR and SPA handling, only return JSON if the client doesn't explicitly want HTML.

@@ -113,8 +113,25 @@ export default function App() {
         // Keep current user updated in real-time
         unsubscribeUser = onSnapshot(userRef, (docSnap) => {
           if (docSnap.exists()) {
+            const data = docSnap.data();
+
+            // session validation
             setCurrentUser((prev: any) => {
-              const updated = { ...prev, ...docSnap.data() };
+              if (prev && prev.sessionId) {
+                // If the doc doesn't have activeSessions or we're not in it
+                const isValid = Array.isArray(data.activeSessions) && data.activeSessions.some((s: any) => s.id === prev.sessionId);
+                if (!isValid) {
+                   toast.error("Sua sessão foi encerrada por outro dispositivo.");
+                   localStorage.clear();
+                   sessionStorage.clear();
+                   setTimeout(() => {
+                     window.location.reload();
+                   }, 500);
+                   return null; // Force unmount by making user null
+                }
+              }
+
+              const updated = { ...prev, ...data };
               saveUserLocally(updated);
               return updated;
             });
@@ -207,9 +224,9 @@ export default function App() {
     setCurrentUser(user);
   };
 
-  const handleLogout = async () => {
+  const handleLogout = () => {
     try {
-      await auth.signOut();
+      auth.signOut().catch(() => {});
       localStorage.clear();
       sessionStorage.clear();
       setCurrentUser(null);
