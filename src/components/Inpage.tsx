@@ -1,7 +1,7 @@
 import { toast } from 'sonner';
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { motion, AnimatePresence, useAnimationControls } from "motion/react";
-import { Plus, Clock, X, ChevronLeft, ChevronRight, Volume2, VolumeX } from "lucide-react";
+import { Plus, Clock, X, ChevronLeft, ChevronRight, Volume2, VolumeX, Trash2 } from "lucide-react";
 import CreateStatusModal from "./CreateStatusModal";
 import { statusService } from "../services/statusService";
 import { formatDistanceToNow } from "date-fns";
@@ -127,6 +127,25 @@ export default function Inpage({ currentUser }: { currentUser: any }) {
         const prevGroup = groupedStatuses[viewingUserIdx - 1];
         setViewingStatusIdx(prevGroup.statuses.length - 1);
       }
+    }
+  };
+
+  const handleRemoveStatus = async (statusId: string) => {
+    if (!confirm("Deseja apagar este status?")) return;
+    try {
+      await statusService.deleteStatus(statusId);
+      const updated = await statusService.getActiveStatuses();
+      setStatuses(updated);
+      
+      // If we are currently viewing the deleted status, we either move Next, or close Viewer if it's empty
+      if (viewingUserIdx !== null) {
+        // Just refresh the entire view by closing it for simplicity, or we can handle it smartly
+        toast.success("Status apagado com sucesso");
+        closeViewer();
+      }
+    } catch (e) {
+      console.error("Failed to delete status:", e);
+      toast.error("Falha ao apagar status");
     }
   };
 
@@ -282,6 +301,11 @@ export default function Inpage({ currentUser }: { currentUser: any }) {
                    </div>
                 </div>
                 <div className="flex items-center gap-3 pointer-events-auto">
+                   {currentStatus.userId === currentUser._id && (
+                     <button onClick={(e) => { e.stopPropagation(); handleRemoveStatus(currentStatus.id); }} className="p-2 rounded-full bg-red-500/80 hover:bg-red-600 text-white backdrop-blur-sm transition-colors">
+                        <Trash2 className="w-5 h-5" />
+                     </button>
+                   )}
                    {currentStatus.type === "video" && (
                      <button onClick={(e) => { e.stopPropagation(); setIsMuted(!isMuted); }} className="p-2 rounded-full bg-black/40 hover:bg-black/60 text-white backdrop-blur-sm transition-colors">
                         {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}

@@ -41,5 +41,11 @@ export const statusService = {
       viewers: [],
       reactions: []
     });
+  },
+
+  async deleteStatus(statusId: string) {
+    const { doc, updateDoc } = await import("firebase/firestore");
+    const statusRef = doc(db, "statuses", statusId);
+    return await updateDoc(statusRef, { deleted: true });
   }
 };

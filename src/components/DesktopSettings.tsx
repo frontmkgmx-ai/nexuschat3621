@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Settings, Monitor, BellRing, Shield, Zap, ArrowLeft, LogOut, DownloadCloud } from 'lucide-react';
-import { SettingToggle } from './Sidebar'; // we can export it or copy it
 
 export default function DesktopSettings({ onLogout }: { onLogout: () => void }) {
   const [view, setView] = useState<"MENU" | "GENERAL" | "NOTIFICATIONS" | "PERFORMANCE">("MENU");

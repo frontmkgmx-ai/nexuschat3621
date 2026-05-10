@@ -1,4 +1,6 @@
 import { CALL_API_BASE } from './callApi';
+import { getStorage, ref as storageRef, uploadBytesResumable, getDownloadURL, deleteObject } from "firebase/storage";
+import { app } from "../lib/firebase";
 
 /**
  * URL base para as requisições públicas de mídia e manipulação de arquivos (Storage)
@@ -128,68 +130,54 @@ interface UploadedFileSuccess {
  * @returns {Promise<UploadedFileSuccess>} Json de retorno validado do Storage
  */
 export async function uploadFileToBucket({ file, bucket, onProgress }: UploadFileParams): Promise<UploadedFileSuccess> {
-  try {
-    const path = generateUniquePath(file);
-    
-    // Obter presigned URL do nosso próprio backend que abstrai as credenciais administrativas do aws-sdk 
-    const res = await fetch(`${CALL_API_BASE}/api/storage/presign`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ filename: path, contentType: file.type })
-    });
-    
-    if (!res.ok) {
-        throw new Error("Falha de autenticação ou infraestrutura ao obter URL temporária de upload via backend.");
-    }
-    
-    const { url } = await res.json();
+  const path = generateUniquePath(file);
+  const targetBucket = bucket || BUCKET_NAME;
+  const fullPath = `${targetBucket}/${path}`;
 
-    // Fazer upload usando a API antiga, mais madura (XMLHttpRequest) que suporta escuta bruta do body e streaming
-    await new Promise<void>((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhr.open("PUT", url, true);
-        xhr.setRequestHeader("Content-Type", file.type);
-        
-        // Atacha listener de progresso bruto e nativo (TCP Layer feedback)
-        if (onProgress) {
-            xhr.upload.onprogress = (e) => {
-                if (e.lengthComputable) {
-                    onProgress(Math.round((e.loaded / Math.max(e.total, 1)) * 100));
-                }
-            };
-        }
-        
-        // Verifica conclusão
-        xhr.onload = () => {
-            if (xhr.status >= 200 && xhr.status < 300) {
-                resolve();
-            } else {
-                reject(new Error(`Erro fatal em infra de Cloud Upload, falha com Status HTTP: ${xhr.status}`));
-            }
-        };
-        
-        // Problemas de roteamento (Wi-fi / Proxy / DNS Cloudflare)
-        xhr.onerror = () => reject(new Error("Erro de conexão (CORS, Socket, ou Host indisponível) ao upar o arquivo."));
-        xhr.send(file);
-    });
-
-    const publicUrl = getPublicFileUrl(path);
-
-    // Tipando perfeitamente a saída no sistema central.
-    const fileData = {
-      name: file.name,
-      mimeType: file.type,
-      size: file.size,
-      filename: path,
-      path: path,
-      url: publicUrl,
-      createdAt: new Date().toISOString()
-    };
-
-    return { file: fileData };
-  } catch (err: any) {
-    throw new Error(err.message || "Network e/ou Timeout error detectado durante a sequência de upload");
+  const res = await fetch(`${CALL_API_BASE}/api/storage/presign`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ filename: fullPath, contentType: file.type })
+  });
+  
+  if (!res.ok) {
+      throw new Error("Erro de infraestrutura: Não foi possível obter URL assinada.");
   }
+  
+  const { url } = await res.json();
+
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("PUT", url);
+    xhr.setRequestHeader("Content-Type", file.type);
+    
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable && onProgress) {
+        onProgress(Math.round((event.loaded / event.total) * 100));
+      }
+    };
+    
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        const publicUrl = getPublicFileUrl(fullPath);
+        const fileData = {
+          name: file.name,
+          mimeType: file.type,
+          size: file.size,
+          filename: path,
+          path: fullPath,
+          url: publicUrl,
+          createdAt: new Date().toISOString()
+        };
+        resolve({ file: fileData });
+      } else {
+        reject(new Error(`Storage Error: ${xhr.statusText}`));
+      }
+    };
+    
+    xhr.onerror = () => reject(new Error("Conexão de rede falhou ao enviar arquivo pro Storage."));
+    xhr.send(file);
+  });
 }
 
 /**
@@ -323,56 +311,46 @@ export async function uploadVoiceToStorage(conversationId: string, messageId: st
 
   // Respeitar a exigência de ser na pasta específica: voice-messages/{conversationId}/{messageId}/voice-{uuid}.ext
   const path = `voice-messages/${conversationId}/${messageId}/voice-${uuid}.${ext}`;
+  const fullPath = `${BUCKET_NAME}/${path}`;
   
   const file = new File([blob], `voice-${uuid}.${ext}`, { type: fileType });
   const contentTypeStr = file.type.split(';')[0]; // Previne envio de tags estringentes de MediaDevice erradas
   
-  // Utilizando o backend existente de storage presign para seguridade e autenticação.
   const res = await fetch(`${CALL_API_BASE}/api/storage/presign`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ filename: path, contentType: contentTypeStr })
+      body: JSON.stringify({ filename: fullPath, contentType: contentTypeStr })
   });
   
   if (!res.ok) {
-     throw new Error("Recusa na autenticação de upload da nota de voz! Falha ao obter URL Presigned.");
+      throw new Error("Erro de infraestrutura: Não foi possível obter URL assinada para áudio.");
   }
   
   const { url } = await res.json();
 
-  // Executar transmissão robusta e estável
-  await new Promise<void>((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      xhr.open("PUT", url, true);
-      
-      // Essencial definir content-type validado senão a CDN invalida MIME type e player não reproduz
-      xhr.setRequestHeader("Content-Type", contentTypeStr);
-      // Áudios raramente deverão ou irão mudar. Permitir supercache agressivo
-      xhr.setRequestHeader("Cache-Control", "public, max-age=31536000"); 
-      
-      if (onProgress) {
-          xhr.upload.onprogress = (e) => {
-              if (e.lengthComputable) {
-                  onProgress(Math.round((e.loaded / Math.max(e.total, 1)) * 100));
-              }
-          };
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("PUT", url);
+    xhr.setRequestHeader("Content-Type", contentTypeStr);
+    
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable && onProgress) {
+        onProgress(Math.round((event.loaded / event.total) * 100));
       }
-      
-      xhr.onload = () => {
-          if (xhr.status >= 200 && xhr.status < 300) {
-              resolve();
-          } else {
-              reject(new Error(`Sincronização de Áudio Interrompida pelas bordas da CDN com status ${xhr.status}`));
-          }
-      };
-      
-      xhr.onerror = () => reject(new Error("Instabilidade de rede ou conexão sem internet detectada ao transmitir áudio."));
-      xhr.send(file);
+    };
+    
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        const publicUrl = getVoiceMediaUrl(fullPath);
+        resolve({ path: fullPath, url: publicUrl, size: blob.size, mimeType: file.type });
+      } else {
+        reject(new Error(`Storage Error: ${xhr.statusText}`));
+      }
+    };
+    
+    xhr.onerror = () => reject(new Error("Falha de autenticação ou infra ao upar o aúdio."));
+    xhr.send(file);
   });
-
-  const publicUrl = getVoiceMediaUrl(path);
-
-  return { path, url: publicUrl, size: blob.size, mimeType: file.type };
 }
 
 /**

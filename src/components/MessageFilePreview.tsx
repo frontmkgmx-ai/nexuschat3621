@@ -123,9 +123,19 @@ export default function MessageFilePreview({ message }: { message: any }) {
   if (isImage) {
     if (file.path) {
       return (
+        <>
         <div onClick={openViewer} className="rounded-[16px] overflow-hidden cursor-pointer max-w-full">
           <MediaFileViewer path={file.path} type="image" name={name} />
         </div>
+        <MediaViewerModal 
+          isOpen={isViewerOpen} 
+          onClose={() => setIsViewerOpen(false)} 
+          mediaUrl={sanitizeUrl(getPublicFileUrl(file.path))} 
+          embedUrl={getEmbedFileUrl(file.path)}
+          mimeType={mimeType} 
+          fileName={name}
+        />
+        </>
       );
     }
     return (
@@ -175,6 +185,7 @@ export default function MessageFilePreview({ message }: { message: any }) {
       return (
         <div className="w-[280px] sm:w-[360px] max-w-full rounded-[16px] overflow-hidden bg-black ring-1 ring-white/10 shadow-[0_0_20px_rgba(0,0,0,0.5)]">
           <MediaFileViewer path={file.path} type="video" name={name} />
+          {/* CustomVideoPlayer handles its own modal internally in fullscreen mode, but just in case keeping it simple here without modal overlap */}
         </div>
       );
     }

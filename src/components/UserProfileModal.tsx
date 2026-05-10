@@ -5,7 +5,7 @@ import { db } from '../lib/firebase';
 import { sanitizeUrl } from '../services/fileApi';
 import { format } from 'date-fns';
 
-export default function UserProfileModal({ userId, onClose, currentUserId }: { userId: string, onClose: () => void, currentUserId: string }) {
+export default function UserProfileModal({ userId, onClose, currentUserId, onMessage }: { userId: string, onClose: () => void, currentUserId: string, onMessage?: () => void }) {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
@@ -71,7 +71,7 @@ export default function UserProfileModal({ userId, onClose, currentUserId }: { u
                       <img src={avatar} alt="Avatar" className="w-full h-full object-cover" />
                    </div>
                    {user._id !== currentUserId && (
-                     <button className="bg-indigo-500 hover:bg-indigo-600 text-white p-3 rounded-2xl shadow-lg transition-transform hover:scale-105" title="Enviar Mensagem">
+                     <button onClick={onMessage} className="bg-indigo-500 hover:bg-indigo-600 text-white p-3 rounded-2xl shadow-lg transition-transform hover:scale-105" title="Enviar Mensagem">
                         <MessageCircle className="w-5 h-5" />
                      </button>
                    )}

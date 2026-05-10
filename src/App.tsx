@@ -122,6 +122,9 @@ export default function App() {
                 const isValid = Array.isArray(data.activeSessions) && data.activeSessions.some((s: any) => s.id === prev.sessionId);
                 if (!isValid) {
                    toast.error("Sua sessão foi encerrada por outro dispositivo.");
+                   if (auth.currentUser) {
+                      auth.signOut().catch(() => {});
+                   }
                    localStorage.clear();
                    sessionStorage.clear();
                    setTimeout(() => {
@@ -224,9 +227,11 @@ export default function App() {
     setCurrentUser(user);
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     try {
-      auth.signOut().catch(() => {});
+      if (auth.currentUser) {
+        await auth.signOut();
+      }
       localStorage.clear();
       sessionStorage.clear();
       setCurrentUser(null);
@@ -293,6 +298,34 @@ export default function App() {
               userId={publicProfileUser} 
               currentUserId={currentUser._id} 
               onClose={() => setPublicProfileUser(null)} 
+              onMessage={async () => {
+                 setPublicProfileUser(null);
+                 const { query, collection, where, getDocs, addDoc } = await import("firebase/firestore");
+                 const q1 = query(collection(db, "conversations"), where("participants", "array-contains", currentUser._id));
+                 const snapshot = await getDocs(q1);
+                 let convoId = null;
+                 for (const d of snapshot.docs) {
+                    const data = d.data();
+                    if (data.participants.includes(publicProfileUser) && data.participants.length === 2 && !data.isGroup) {
+                       convoId = d.id;
+                       break;
+                    }
+                 }
+                 if (!convoId) {
+                    const newDoc = await addDoc(collection(db, "conversations"), {
+                       participants: [currentUser._id, publicProfileUser],
+                       isGroup: false,
+                       updatedAt: Date.now()
+                    });
+                    convoId = newDoc.id;
+                 }
+                 setSelectedConvo({
+                    _id: convoId,
+                    participants: [currentUser._id, publicProfileUser],
+                    isGroup: false,
+                    otherUser: { _id: publicProfileUser }
+                 });
+              }}
            />
         )}
       </div>

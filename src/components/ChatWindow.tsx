@@ -21,6 +21,18 @@ const extractFirstUrl = (text: string) => {
   return match ? match[0] : null;
 };
 
+const linkify = (text: string) => {
+  if (!text) return text;
+  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  const parts = text.split(urlRegex);
+  return parts.map((part, i) => {
+    if (part.match(urlRegex)) {
+      return <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="text-indigo-400 hover:text-indigo-300 underline" onClick={(e) => e.stopPropagation()}>{part}</a>;
+    }
+    return part;
+  });
+};
+
 const MessageBubble = React.memo(({ 
   msg, 
   isMine, 
@@ -225,7 +237,7 @@ const MessageBubble = React.memo(({
               ) : null}
               {hasText && msg.type !== "call_event" && msg.type !== "call" && (
                 <>
-                  <p className="leading-snug">{msg.text}</p>
+                  <p className="leading-snug whitespace-pre-wrap word-break">{linkify(msg.text)}</p>
                   {firstUrl && <LinkPreviewCard url={firstUrl} />}
                 </>
               )}
