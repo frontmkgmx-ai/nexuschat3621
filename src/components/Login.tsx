@@ -60,14 +60,39 @@ export default function Login({ onLogin }: { onLogin: (user: any) => void }) {
     const fetchQr = async () => {
        try {
          const deviceName = isNative ? "Nexus Desktop App" : /Edg/.test(navigator.userAgent) ? "Edge Browser" : /Chrome/.test(navigator.userAgent) ? "Chrome Browser" : "Desktop Browser";
-         const res = await fetch(`${CALL_API_BASE}/api/auth/qr?device=${encodeURIComponent(deviceName)}`);
-         const data = await res.json();
-         setQrSessionId(data.sessionId);
-         setQrDataStr(data.qrData);
+         
+         let sessionId: string = "";
+         let qrData: string = "";
+
+         try {
+           // Tenta buscar do backend (caso esteja rodando full-stack)
+           const res = await fetch(`${CALL_API_BASE}/api/auth/qr?device=${encodeURIComponent(deviceName)}`);
+           if (!res.ok) throw new Error("API não OK");
+           const data = await res.json();
+           if (!data.sessionId) throw new Error("Sem sessionId");
+           sessionId = data.sessionId;
+           qrData = data.qrData;
+         } catch (apiErr) {
+           // Fallback para ambientes estáticos (como Cloudflare Pages) que não possuem o backend Express rodando na mesma porta
+           sessionId = "qr_" + Date.now().toString(36) + "_" + Math.random().toString(36).substring(2, 10);
+           qrData = JSON.stringify({ 
+               type: "login", 
+               sessionId, 
+               generatedAt: Date.now(),
+               deviceInfo: {
+                   id: sessionId,
+                   device: deviceName,
+                   lastActive: Date.now()
+               }
+           });
+         }
+
+         setQrSessionId(sessionId);
+         setQrDataStr(qrData);
 
          // Sub to RTDB for the new sessionId
          if (unsub) unsub();
-         const sessionRef = ref(rtdb, `qrLogins/${data.sessionId}`);
+         const sessionRef = ref(rtdb, `qrLogins/${sessionId}`);
          set(sessionRef, { status: "waiting", timestamp: Date.now() });
 
          unsub = onValue(sessionRef, async (snapshot) => {
@@ -77,7 +102,7 @@ export default function Login({ onLogin }: { onLogin: (user: any) => void }) {
                const userSnap = await getDoc(doc(db, "users", val.userId));
                if (userSnap.exists()) {
                   await remove(sessionRef); // clean up
-                  onLogin({ ...userSnap.data(), sessionId: data.sessionId });
+                  onLogin({ ...userSnap.data(), sessionId });
                }
              } catch(e) {
                 console.error("Erro ao buscar usario logado no QR", e);
@@ -93,7 +118,7 @@ export default function Login({ onLogin }: { onLogin: (user: any) => void }) {
 
     if (step === "QR_LOGIN") {
        fetchQr();
-       timerId = setInterval(fetchQr, 60000); // refresh every 60 seconds
+       timerId = setInterval(fetchQr, 5000); // refresh every 5 seconds
     }
 
     return () => {
