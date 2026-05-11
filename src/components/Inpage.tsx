@@ -6,7 +6,7 @@ import CreateStatusModal from "./CreateStatusModal";
 import { statusService } from "../services/statusService";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { sanitizeUrl } from "../services/fileApi";
+import { sanitizeUrl } from "../services/storageService";
 import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
 
 export default function Inpage({ currentUser }: { currentUser: any }) {

@@ -1,5 +1,5 @@
 import React from 'react';
-import { getPublicFileUrl, getEmbedFileUrl, sanitizeUrl } from '../services/fileApi';
+import { getPublicFileUrl, getEmbedFileUrl, sanitizeUrl } from '../services/storageService';
 import CustomVideoPlayer from './CustomVideoPlayer';
 
 interface MediaFileViewerProps {

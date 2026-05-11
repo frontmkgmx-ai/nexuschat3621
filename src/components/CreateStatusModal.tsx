@@ -2,7 +2,7 @@ import { toast } from 'sonner';
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { X, Image as ImageIcon, Video, Type, Palette, Upload, Crop } from "lucide-react";
-import { uploadFileToBucket } from "../services/fileApi";
+import { uploadToR2 } from "../services/storageService";
 import Cropper from 'react-easy-crop';
 import { getCroppedImg } from "../lib/cropImage";
 

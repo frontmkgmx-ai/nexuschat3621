@@ -4,7 +4,7 @@ import { X, Shield, Palette, Ban, Flag, Trash2, Eraser, Check } from "lucide-rea
 import { motion, AnimatePresence } from "motion/react";
 import { db } from "../lib/firebase";
 import { doc, updateDoc, writeBatch, collection, query, where, getDocs } from "firebase/firestore";
-import { sanitizeUrl } from "../services/fileApi";
+import { sanitizeUrl } from "../services/storageService";
 import ConfirmModal from "./ConfirmModal";
 
 interface ChatSettingsPanelProps {

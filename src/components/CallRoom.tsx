@@ -3,7 +3,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { PhoneOff, Mic, MicOff, Camera, CameraOff, MonitorUp, ChevronDown, Volume2, MessageSquare, Phone, User, Settings2, Activity, Wifi, X, Maximize, Minimize } from 'lucide-react';
 import { useWebRTC } from '../hooks/useWebRTC';
 import { useCallControls } from '../hooks/useCallControls';
-import { sanitizeUrl } from '../services/fileApi';
+import { sanitizeUrl } from '../services/storageService';
 import { db, rtdb } from '../lib/firebase';
 import { ref as dbRef, set, onDisconnect } from 'firebase/database';
 

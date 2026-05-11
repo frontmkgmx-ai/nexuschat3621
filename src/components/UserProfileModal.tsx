@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, MessageCircle, Mail, Phone, Calendar, ShieldCheck, Gamepad2, Monitor, Trophy } from 'lucide-react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { sanitizeUrl } from '../services/fileApi';
+import { sanitizeUrl } from '../services/storageService';
 import { format } from 'date-fns';
 
 export default function UserProfileModal({ userId, onClose, currentUserId, onMessage }: { userId: string, onClose: () => void, currentUserId: string, onMessage?: () => void }) {

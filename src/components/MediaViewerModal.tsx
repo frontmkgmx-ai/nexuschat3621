@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Download, Share2, ZoomIn } from 'lucide-react';
-import { sanitizeUrl } from '../services/fileApi';
+import { sanitizeUrl } from '../services/storageService';
 import CustomVideoPlayer from './CustomVideoPlayer';
 
 export default function MediaViewerModal({

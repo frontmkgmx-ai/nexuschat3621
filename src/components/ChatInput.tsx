@@ -3,7 +3,7 @@ import { Send, Smile, Paperclip } from "lucide-react";
 import { db, rtdb } from "../lib/firebase";
 import { collection, doc, setDoc, updateDoc } from "firebase/firestore";
 import { ref, set } from "firebase/database";
-import { uploadChatImage, uploadChatVideo, uploadChatAudio, uploadChatDocument, uploadGroupImage, uploadGroupVideo, uploadGroupAudio, uploadGroupDocument } from "../services/fileApi";
+import { uploadChatImage, uploadChatVideo, uploadChatAudio, uploadChatDocument, uploadGroupImage, uploadGroupVideo, uploadGroupAudio, uploadGroupDocument } from "../services/storageService";
 
 export default function ChatInput({ 
   currentUser, 

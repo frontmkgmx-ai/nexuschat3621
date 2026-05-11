@@ -41,7 +41,7 @@ import { collection, query, where, onSnapshot, getDocs, doc, setDoc, updateDoc, 
 import { ref as dbRef, onValue } from "firebase/database";
 import { CALL_API_BASE } from "../services/callApi";
 import { GoogleAuthProvider, linkWithPopup, unlink, signInWithPopup } from "firebase/auth";
-import { uploadProfilePhoto, sanitizeUrl } from "../services/fileApi";
+import { uploadProfilePhoto, sanitizeUrl } from "../services/storageService";
 import NewsView from "./NewsView";
 import Inpage from "./Inpage";
 import TermsAndPrivacy from "./TermsAndPrivacy";

@@ -10,16 +10,29 @@ import cors from "cors";
 
 dotenv.config();
 
+function cleanEnvUrl(url?: string): string | undefined {
+  if (!url) return url;
+  if (url.includes('google.com/url')) {
+    try {
+      const urlObj = new URL(url);
+      return decodeURIComponent(urlObj.searchParams.get('q') || url);
+    } catch {
+      return url;
+    }
+  }
+  return url;
+}
+
 const s3Client = new S3Client({
   forcePathStyle: true,
-  region: process.env.SUPABASE_S3_REGION || "sa-east-1",
-  endpoint: process.env.SUPABASE_S3_ENDPOINT || "https://hofehxzukldxdewgntof.storage.supabase.co/storage/v1/s3",
+  region: "auto",
+  endpoint: cleanEnvUrl(process.env.R2_ENDPOINT) || "https://7b6b27d12265ebd16b19f2cf1577f778.r2.cloudflarestorage.com",
   credentials: {
-    accessKeyId: process.env.SUPABASE_S3_ACCESS_KEY_ID || "",
-    secretAccessKey: process.env.SUPABASE_S3_SECRET_ACCESS_KEY || "",
+    accessKeyId: process.env.R2_ACCESS_KEY_ID || "",
+    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY || "",
   }
 });
-const BUCKET_NAME = process.env.SUPABASE_S3_BUCKET || "chatgeral";
+const BUCKET_NAME = process.env.R2_BUCKET_NAME || "nexuschat";
 
 async function startServer() {
   const app = express();
@@ -155,7 +168,7 @@ async function startServer() {
   });
 
   // Storage API endpoints
-  app.post("/api/storage/presign", async (req, res) => {
+  app.post("/api/storage/presign-upload", async (req, res) => {
     try {
       const { filename, contentType } = req.body;
       const command = new PutObjectCommand({
@@ -170,7 +183,7 @@ async function startServer() {
     }
   });
 
-  app.post("/api/storage/delete", async (req, res) => {
+  app.delete("/api/storage/delete", async (req, res) => {
     try {
       const { filename } = req.body;
       const command = new DeleteObjectCommand({
@@ -184,11 +197,28 @@ async function startServer() {
     }
   });
 
-  app.get("/api/storage/list", async (req, res) => {
+  app.get("/api/storage/file-info", async (req, res) => {
     try {
       const command = new ListObjectsV2Command({ Bucket: BUCKET_NAME });
       const response = await s3Client.send(command);
       res.json({ contents: response.Contents || [] });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.put("/api/storage/upload", express.raw({ type: '*/*', limit: '100mb' }), async (req, res) => {
+    try {
+      const filename = req.query.filename as string;
+      const contentType = req.headers['content-type'] as string;
+      const command = new PutObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: filename,
+        ContentType: contentType,
+        Body: req.body,
+      });
+      await s3Client.send(command);
+      res.json({ success: true, filename });
     } catch (e: any) {
       res.status(500).json({ error: e.message });
     }

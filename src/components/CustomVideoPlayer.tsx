@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Play, Pause, Volume2, VolumeX, Volume1, Maximize, Minimize, Settings, Download, MoreVertical, Check, PictureInPicture } from 'lucide-react';
-import { sanitizeUrl } from '../services/fileApi';
+import { sanitizeUrl } from '../services/storageService';
 
 export default function CustomVideoPlayer({
     src,

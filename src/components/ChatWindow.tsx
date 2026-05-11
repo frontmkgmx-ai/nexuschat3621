@@ -7,7 +7,7 @@ import { collection, query, where, onSnapshot, updateDoc, doc, writeBatch, addDo
 import { ref as dbRef, onValue } from "firebase/database";
 import MessageFilePreview from "./MessageFilePreview";
 import VoiceMessageBubble from "./VoiceMessageBubble";
-import { sanitizeUrl } from "../services/fileApi";
+import { sanitizeUrl } from "../services/storageService";
 import CallRoom from "./CallRoom";
 import ChatInput from "./ChatInput";
 import MessageContextMenu, { ContextMenuPosition } from "./MessageContextMenu";

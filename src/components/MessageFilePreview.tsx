@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { sanitizeUrl, getEmbedFileUrl } from "../services/fileApi";
+import { sanitizeUrl, getEmbedFileUrl } from "../services/storageService";
 import { File, Download, Play, Pause, Image as ImageIcon, Music, FileText, Film, ZoomIn } from 'lucide-react';
 import MediaViewerModal from './MediaViewerModal';
 import { MediaFileViewer } from './MediaFileViewer';

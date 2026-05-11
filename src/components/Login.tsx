@@ -6,7 +6,7 @@ import { collection, query, where, getDocs, setDoc, doc, getDoc, arrayUnion, upd
 import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 import { ref, onValue, set, remove } from "firebase/database";
 import { motion, AnimatePresence } from "motion/react";
-import { sanitizeUrl } from "../services/fileApi";
+import { sanitizeUrl } from "../services/storageService";
 import { useNexusNative } from "../hooks/useNexusNative";
 import { QRCodeSVG } from "qrcode.react";
 import { CALL_API_BASE } from "../services/callApi";
