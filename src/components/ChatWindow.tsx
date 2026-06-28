@@ -496,10 +496,10 @@ export default function ChatWindow({
   }, [messages, conversation, currentUser._id]);
 
   useEffect(() => {
-    if (isTyping) {
+    if (activityStatus) {
       scrollToBottom();
     }
-  }, [isTyping, scrollToBottom]);
+  }, [activityStatus, scrollToBottom]);
 
   const handleContextMenu = (e: React.PointerEvent | React.MouseEvent, msg: any) => {
     let clientX, clientY;
