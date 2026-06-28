@@ -31,7 +31,7 @@ import {
   CheckCircle2,
   Loader2,
   MessageSquare,
-  Trash2, Archive, Download, FileText, UserPlus as AddUserIcon, MoreVertical, BadgeCheck, QrCode, Monitor
+  Trash2, Archive, Download, FileText, UserPlus as AddUserIcon, MoreVertical, BadgeCheck, QrCode, Monitor, Link2
 } from "lucide-react";
 import { format } from "date-fns";
 import { parsePhoneNumber, getCountryCallingCode, CountryCode, getCountries } from "libphonenumber-js";
@@ -80,6 +80,7 @@ export default function Sidebar({
   const [search, setSearch] = useState("");
   const [showAddContact, setShowAddContact] = useState(false);
   const [newContactName, setNewContactName] = useState("");
+  const [newConvoUsername, setNewConvoUsername] = useState("");
   
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [chatOrderLayout, setChatOrderLayout] = useState<string[]>(() => {
@@ -451,6 +452,34 @@ export default function Sidebar({
   };
   const filteredContacts = contacts.filter(c => c.name.toLowerCase().includes(search.toLowerCase()) || c.phoneNumber.includes(search));
 
+  const handleStartConvoByUsername = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const finalUsername = newConvoUsername.trim();
+    if (!finalUsername) return;
+
+    if (finalUsername === currentUser.username) {
+       toast.error("Você não pode iniciar uma conversa consigo mesmo.");
+       return;
+    }
+
+    try {
+       const q = query(collection(db, "users"), where("username", "==", finalUsername));
+       const querySnapshot = await getDocs(q);
+       
+       if (querySnapshot.empty) {
+          toast.error("Usuário não encontrado.");
+          return;
+       }
+       
+       const otherUserId = querySnapshot.docs[0].id;
+       await handleStartConvo(otherUserId);
+       setShowContactPicker(false);
+       setNewConvoUsername("");
+    } catch (err: any) {
+       toast.error("Erro ao procurar usuário.");
+    }
+  };
+
   const handleStartConvo = async (otherUserId: string) => {
     // Check if convo exists
     const q1 = query(collection(db, "conversations"), where("participants", "array-contains", currentUser._id));
@@ -767,9 +796,21 @@ export default function Sidebar({
             >
               <div className="px-5 py-4 shrink-0 mt-2 md:mt-0 flex justify-between items-center">
                 <h2 className="text-2xl font-display font-bold text-zinc-100 tracking-tight">{showArchived ? "Arquivados" : "Messages"}</h2>
-                <button onClick={() => setShowArchived(!showArchived)} className={`p-2 rounded-full transition-colors ${showArchived ? 'bg-indigo-500 text-white' : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800'}`}>
-                   <Archive className="w-5 h-5" />
-                </button>
+                <div className="flex items-center gap-1">
+                  <button 
+                    onClick={() => {
+                      navigator.clipboard.writeText(window.location.origin);
+                      toast.success("Link de convite copiado!");
+                    }} 
+                    className="p-2 rounded-full transition-colors text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800"
+                    title="Copiar link de convite"
+                  >
+                     <Link2 className="w-5 h-5" />
+                  </button>
+                  <button onClick={() => setShowArchived(!showArchived)} className={`p-2 rounded-full transition-colors ${showArchived ? 'bg-indigo-500 text-white' : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800'}`}>
+                     <Archive className="w-5 h-5" />
+                  </button>
+                </div>
               </div>
               <div className="px-4 pb-3 shrink-0">
                 <div className="bg-zinc-950/50 flex items-center px-4 rounded-xl h-11 border border-zinc-800/80 focus-within:border-indigo-500/50 focus-within:bg-zinc-950 transition-all shadow-inner">
@@ -919,37 +960,26 @@ export default function Sidebar({
                           <X className="w-5 h-5" />
                        </button>
                     </div>
-                    <div className="max-h-[60vh] overflow-y-auto custom-scrollbar space-y-1">
-                      {contacts.map((contact) => (
-                        <div 
-                           key={contact._id}
-                           onClick={() => {
-                             if (contact.registeredUserId) {
-                               handleStartConvo(contact.registeredUserId);
-                               setShowContactPicker(false);
-                             } else {
-                               toast.error("Usuário não cadastrado.");
-                             }
-                           }}
-                           className="flex items-center gap-3 p-3 rounded-xl hover:bg-[#2B2D31] cursor-pointer transition-colors"
-                        >
-                          <img 
-                             src={sanitizeUrl(contact.userProfile?.avatarUrl) || `https://api.dicebear.com/7.x/initials/svg?seed=${contact.name}`} 
-                             className="w-10 h-10 rounded-full object-cover" 
-                             onClick={(e) => {
-                               if (contact.registeredUserId && onOpenProfile) {
-                                  e.stopPropagation();
-                                  onOpenProfile(contact.registeredUserId);
-                               }
-                             }}
-                          />
-                          <div>
-                            <p className="text-white font-medium text-sm">{contact.name}</p>
-                            <p className="text-zinc-500 text-xs">{contact.phoneNumber}</p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                    <form onSubmit={handleStartConvoByUsername} className="space-y-4">
+                      <div>
+                        <label className="text-[11px] text-indigo-400 font-bold uppercase tracking-wider mb-2 block">Nome de Usuário</label>
+                        <input
+                          type="text"
+                          required
+                          className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3.5 text-zinc-100 outline-none focus:border-indigo-500 transition-colors text-sm shadow-inner"
+                          placeholder="Digite o nome de usuário"
+                          value={newConvoUsername}
+                          onChange={(e) => setNewConvoUsername(e.target.value)}
+                        />
+                      </div>
+                      <button 
+                        type="submit" 
+                        disabled={!newConvoUsername.trim()}
+                        className="w-full bg-indigo-600 text-white py-3 rounded-xl font-semibold hover:bg-indigo-500 transition-colors disabled:opacity-50"
+                      >
+                        Iniciar Conversa
+                      </button>
+                    </form>
                   </motion.div>
                 </div>
               )}
