@@ -4,6 +4,7 @@ import { db, rtdb } from "../lib/firebase";
 import { collection, doc, setDoc, updateDoc } from "firebase/firestore";
 import { ref, set } from "firebase/database";
 import { uploadChatImage, uploadChatVideo, uploadChatAudio, uploadChatDocument, uploadGroupImage, uploadGroupVideo, uploadGroupAudio, uploadGroupDocument } from "../services/storageService";
+import EmojiPicker, { Theme } from "emoji-picker-react";
 
 export default function ChatInput({ 
   currentUser, 
@@ -28,7 +29,19 @@ export default function ChatInput({
 }) {
   const [text, setText] = useState("");
   const [isRecording, setIsRecording] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const emojiPickerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (emojiPickerRef.current && !emojiPickerRef.current.contains(event.target as Node)) {
+        setShowEmojiPicker(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   useEffect(() => {
      if (conversation?._id && currentUser?._id) {
@@ -280,10 +293,26 @@ export default function ChatInput({
         </div>
       )}
       <div className="bg-[#0a0a0c]/80 backdrop-blur-xl px-4 py-3 sm:py-4 flex items-center h-[72px] sm:h-[84px] relative">
-        <div className="flex items-center gap-2 text-zinc-400 mr-2 sm:mr-3">
-          <button type="button" className="p-2 rounded-full hover:bg-white/5 hover:text-indigo-400 transition-colors hidden sm:block">
+        <div className="flex items-center gap-2 text-zinc-400 mr-2 sm:mr-3 relative" ref={emojiPickerRef}>
+          <button 
+            type="button" 
+            onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+            className="p-2 rounded-full hover:bg-white/5 hover:text-indigo-400 transition-colors block"
+          >
             <Smile className="w-[22px] h-[22px]" />
           </button>
+          
+          {showEmojiPicker && (
+            <div className="absolute bottom-[60px] left-0 z-50 shadow-2xl rounded-lg overflow-hidden border border-zinc-800">
+               <EmojiPicker 
+                 theme={Theme.DARK}
+                 onEmojiClick={(emojiData) => {
+                   setText(prev => prev + emojiData.emoji);
+                 }}
+               />
+            </div>
+          )}
+
           <label className={`p-2 rounded-full hover:bg-white/5 transition-colors block ${channelType === 'logs' ? 'text-zinc-600 cursor-not-allowed' : 'cursor-pointer hover:text-indigo-400 text-zinc-400'}`}>
             <Paperclip className="w-[22px] h-[22px]" />
             <input type="file" className="hidden" onChange={handleFileUpload} accept={channelType === 'media' ? "image/*,video/*" : channelType === 'links' ? ".pdf,.doc,.docx,.xls,.xlsx,.zip,.rar,.apk" : "*/*"} disabled={channelType === 'logs'} />

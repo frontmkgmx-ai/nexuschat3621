@@ -17,6 +17,7 @@ interface ChatSettingsPanelProps {
 
 export default function ChatSettingsPanel({ isOpen, onClose, conversation, currentUser, messages }: ChatSettingsPanelProps) {
   const [showThemes, setShowThemes] = useState(false);
+  const [showAura, setShowAura] = useState(false);
   const [confirmState, setConfirmState] = useState<{isOpen: boolean, title: string, message: string, onConfirm: () => void}>({
     isOpen: false, title: "", message: "", onConfirm: () => {}
   });
@@ -24,11 +25,22 @@ export default function ChatSettingsPanel({ isOpen, onClose, conversation, curre
   if (!isOpen) return null;
 
   const currentTheme = conversation.theme?.[currentUser._id] || "default";
+  const currentAura = conversation.backgroundAura?.[currentUser._id] || "none";
 
   const changeTheme = async (theme: string) => {
     try {
       await updateDoc(doc(db, "conversations", conversation._id), {
         [`theme.${currentUser._id}`]: theme
+      });
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const changeAura = async (aura: string) => {
+    try {
+      await updateDoc(doc(db, "conversations", conversation._id), {
+        [`backgroundAura.${currentUser._id}`]: aura
       });
     } catch (err) {
       console.error(err);
@@ -85,6 +97,15 @@ export default function ChatSettingsPanel({ isOpen, onClose, conversation, curre
     { id: "dark-gray", name: "Cinza Escuro", color: "bg-zinc-800 border-zinc-700" },
     { id: "white", name: "Branco", color: "bg-white border-zinc-200" },
     { id: "transparent", name: "Transparente", color: "bg-zinc-800/40 backdrop-blur-md border border-white/10" },
+  ];
+
+  const auras = [
+    { id: "none", name: "Sem Efeito", color: "bg-transparent" },
+    { id: "aura-purple", name: "Aura Roxa", color: "bg-purple-500/30" },
+    { id: "aura-blue", name: "Aura Azul", color: "bg-blue-500/30" },
+    { id: "aura-green", name: "Aura Verde", color: "bg-emerald-500/30" },
+    { id: "aura-sunset", name: "Aura Pôr do Sol", color: "bg-gradient-to-tr from-orange-500/30 to-pink-500/30" },
+    { id: "aura-fire", name: "Aura Fogo", color: "bg-gradient-to-t from-red-500/30 to-orange-500/30" },
   ];
 
   return (
@@ -168,6 +189,41 @@ export default function ChatSettingsPanel({ isOpen, onClose, conversation, curre
                       >
                         <div className={`w-9 h-9 rounded-xl shadow-inner ring-1 ring-white/10 ${t.color}`} />
                         <span className="text-[10px] font-bold text-zinc-500 truncate w-full text-center">{t.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            <button 
+              onClick={() => setShowAura(!showAura)}
+              className="w-full flex items-center justify-between px-5 py-4 text-sm text-zinc-300 hover:bg-zinc-800/50 transition-all group border-t border-zinc-800/30"
+            >
+              <div className="flex items-center gap-3">
+                <Palette className="w-4 h-4 text-pink-400 group-hover:scale-110 transition-transform" />
+                <span className="font-semibold">Efeito Aura</span>
+              </div>
+              <div className={`w-2 h-2 rounded-full transition-all duration-500 ${currentAura !== 'none' ? 'bg-pink-500 shadow-[0_0_10px_rgba(236,72,153,0.5)]' : 'bg-zinc-700'}`} />
+            </button>
+            
+            <AnimatePresence>
+              {showAura && (
+                <motion.div 
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  className="overflow-hidden px-5 pb-5"
+                >
+                  <div className="grid grid-cols-3 gap-3">
+                    {auras.map(a => (
+                      <button 
+                        key={a.id}
+                        onClick={() => changeAura(a.id)}
+                        className={`flex flex-col items-center gap-2 p-2.5 rounded-2xl border transition-all duration-300 ${currentAura === a.id ? 'border-pink-500 bg-pink-500/10 shadow-lg shadow-pink-500/5' : 'border-zinc-800/50 hover:border-zinc-700 hover:bg-zinc-800/30'}`}
+                      >
+                        <div className={`w-9 h-9 rounded-xl shadow-inner ring-1 ring-white/10 ${a.color} ${a.id !== 'none' && 'blur-sm'}`} />
+                        <span className="text-[10px] font-bold text-zinc-500 truncate w-full text-center">{a.name}</span>
                       </button>
                     ))}
                   </div>
