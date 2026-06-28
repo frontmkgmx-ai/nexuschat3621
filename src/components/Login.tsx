@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { useNexusNative } from "../hooks/useNexusNative";
 import { sanitizeUrl } from "../services/storageService";
 
-export default function Login({ onLogin }: { onLogin: (user: any) => void }) {
+export default function Login({ onLogin }: { onLogin: (user: any, isNewUser?: boolean) => void }) {
   const [isLoginView, setIsLoginView] = useState(true);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -80,7 +80,7 @@ export default function Login({ onLogin }: { onLogin: (user: any) => void }) {
         };
 
         await setDoc(doc(db, "users", newUserId), userData);
-        onLogin({ ...userData, sessionId: newSessionId });
+        onLogin({ ...userData, sessionId: newSessionId }, true);
       }
     } catch (err: any) {
       console.error("Auth error:", err);

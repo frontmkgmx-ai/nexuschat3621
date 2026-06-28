@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Send, Smile, Paperclip } from "lucide-react";
+import { Send, Smile, Paperclip, Mic } from "lucide-react";
 import { db, rtdb } from "../lib/firebase";
 import { collection, doc, setDoc, updateDoc } from "firebase/firestore";
 import { ref, set } from "firebase/database";
@@ -27,19 +27,34 @@ export default function ChatInput({
   channelType?: string;
 }) {
   const [text, setText] = useState("");
+  const [isRecording, setIsRecording] = useState(false);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  
+
+  useEffect(() => {
+     if (conversation?._id && currentUser?._id) {
+         const typingRef = ref(rtdb, `conversations/${conversation._id}/typing/${currentUser._id}`);
+         if (isRecording) {
+            set(typingRef, "recording");
+            if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+         } else {
+            set(typingRef, null);
+         }
+     }
+  }, [isRecording, conversation?._id, currentUser?._id]);
+
   const handleTextChange = (e: React.ChangeEvent<HTMLInputElement>) => {
      setText(e.target.value);
      if (!conversation?._id || !currentUser?._id) return;
      
-     const typingRef = ref(rtdb, `conversations/${conversation._id}/typing/${currentUser._id}`);
-     set(typingRef, true);
-     
-     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-     typingTimeoutRef.current = setTimeout(() => {
-        set(typingRef, null);
-     }, 2000);
+     if (!isRecording) {
+         const typingRef = ref(rtdb, `conversations/${conversation._id}/typing/${currentUser._id}`);
+         set(typingRef, "typing");
+         
+         if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+         typingTimeoutRef.current = setTimeout(() => {
+            set(typingRef, null);
+         }, 2000);
+     }
   };
 
   // When editingMsg changes, load its text into input
@@ -285,10 +300,24 @@ export default function ChatInput({
             disabled={channelType === 'media' || channelType === 'links'}
           />
         </form>
-        <div className={`flex items-center ${text.trim() ? "text-indigo-500" : "text-zinc-600"} transition-colors ml-2 sm:ml-3 z-20`}>
-          <button onClick={() => handleSend()} disabled={!text.trim()} className={`${text.trim() ? "bg-indigo-600 hover:bg-indigo-500 hover:scale-105 active:scale-95 text-white shadow-[0_0_15px_rgba(99,102,241,0.4)]" : "bg-[#18181b] border border-white/5 text-zinc-600"} p-3.5 rounded-full cursor-pointer transition-all block`}>
-            <Send className="w-[18px] h-[18px] ml-0.5" />
-          </button>
+        <div className={`flex items-center transition-colors ml-2 sm:ml-3 z-20`}>
+          {text.trim() ? (
+            <button onClick={() => handleSend()} className="bg-indigo-600 hover:bg-indigo-500 hover:scale-105 active:scale-95 text-white shadow-[0_0_15px_rgba(99,102,241,0.4)] p-3.5 rounded-full cursor-pointer transition-all block">
+              <Send className="w-[18px] h-[18px] ml-0.5" />
+            </button>
+          ) : (
+            <button 
+              type="button" 
+              onMouseDown={() => setIsRecording(true)}
+              onMouseUp={() => setIsRecording(false)}
+              onMouseLeave={() => setIsRecording(false)}
+              onTouchStart={() => setIsRecording(true)}
+              onTouchEnd={() => setIsRecording(false)}
+              className={`p-3.5 rounded-full cursor-pointer transition-all block ${isRecording ? 'bg-red-500 text-white animate-pulse shadow-[0_0_15px_rgba(239,68,68,0.4)]' : 'bg-[#18181b] border border-white/5 text-zinc-400 hover:text-indigo-400'}`}
+            >
+              <Mic className="w-[18px] h-[18px]" />
+            </button>
+          )}
         </div>
       </div>
     </div>

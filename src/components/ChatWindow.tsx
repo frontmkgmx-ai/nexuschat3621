@@ -331,29 +331,33 @@ export default function ChatWindow({
   const [replyingTo, setReplyingTo] = useState<any>(null);
   const [editingMsg, setEditingMsg] = useState<any>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isTyping, setIsTyping] = useState(false);
+  const [activityStatus, setActivityStatus] = useState<string>("");
   const [activeCallParticipants, setActiveCallParticipants] = useState<string[]>([]);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!conversation?._id) {
-       setIsTyping(false);
+       setActivityStatus("");
        setActiveCallParticipants([]);
        return;
     }
     const typingRef = dbRef(rtdb, `conversations/${conversation._id}/typing`);
     const unsubTyping = onValue(typingRef, (snapshot) => {
        const val = snapshot.val();
-       let typing = false;
+       let currentActivity = "";
        if (val) {
           Object.keys(val).forEach(k => {
-             if (k !== currentUser._id && val[k] === true) {
-                typing = true;
+             if (k !== currentUser._id && val[k]) {
+                if (val[k] === "recording" || val[k] === "typing") {
+                   currentActivity = val[k];
+                } else if (val[k] === true) {
+                   currentActivity = "typing";
+                }
              }
           });
        }
-       setIsTyping(typing);
+       setActivityStatus(currentActivity);
     });
 
     const callRef = dbRef(rtdb, `conversations/${conversation._id}/callStatus/participants`);
@@ -700,8 +704,8 @@ export default function ChatWindow({
             <div className="text-[10px] text-indigo-400 uppercase tracking-widest font-bold mt-0.5 sm:mt-1 truncate">
               {conversation.isGroup ? 'Criptografia de ponta a ponta' : (
                 <span className="flex items-center gap-1.5 shrink-0">
-                  <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${conversation.otherUser?.status === 'online' ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]' : conversation.otherUser?.status === 'idle' ? 'bg-amber-400' : 'bg-zinc-500'}`} />
-                  <span className="truncate">{conversation.otherUser?.status === 'online' ? 'Online' : conversation.otherUser?.status === 'idle' ? 'Ausente' : 'Offline'}</span>
+                  <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${activityStatus ? 'bg-emerald-400 animate-pulse' : conversation.otherUser?.status === 'online' ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]' : conversation.otherUser?.status === 'idle' ? 'bg-amber-400' : 'bg-zinc-500'}`} />
+                  <span className="truncate">{activityStatus === 'typing' ? 'Digitando...' : activityStatus === 'recording' ? 'Gravando áudio...' : conversation.otherUser?.status === 'online' ? 'Online' : conversation.otherUser?.status === 'idle' ? 'Ausente' : 'Offline'}</span>
                 </span>
               )}
             </div>
@@ -761,7 +765,7 @@ export default function ChatWindow({
           })}
         </AnimatePresence>
         
-        {isTyping && (
+        {activityStatus === 'typing' && (
            <motion.div 
              initial={{ opacity: 0, y: 10 }}
              animate={{ opacity: 1, y: 0 }}

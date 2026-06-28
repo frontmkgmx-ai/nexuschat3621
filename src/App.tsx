@@ -4,6 +4,7 @@ import Sidebar from "./components/Sidebar";
 import ChatWindow from "./components/ChatWindow";
 import Terms from "./components/Terms";
 import UserProfileModal from "./components/UserProfileModal";
+import OnboardingModal from "./components/OnboardingModal";
 import { rtdb, db, auth } from "./lib/firebase";
 import { ref, set, onDisconnect, onValue } from "firebase/database";
 import { doc, getDoc, setDoc, updateDoc, onSnapshot, collection, query, orderBy, limit, arrayUnion, where, getDocs, addDoc } from "firebase/firestore";
@@ -39,13 +40,15 @@ export default function App() {
     return null;
   });
 
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [isFirebaseReady, setIsFirebaseReady] = useState(false);
+
   const saveUserLocally = (user: any) => {
     const expiresAt = Date.now() + 7 * 24 * 60 * 60 * 1000; // 7 days
     localStorage.setItem("chat_user_v2", JSON.stringify({ user, expiresAt }));
   };
   const [selectedConvo, setSelectedConvo] = useState<any>(null);
   const [publicProfileUser, setPublicProfileUser] = useState<any>(null);
-  const [isFirebaseReady, setIsFirebaseReady] = useState(false);
 
   useEffect(() => {
     if (!currentUser) return;
@@ -222,9 +225,12 @@ export default function App() {
     };
   }, [currentUser?._id]);
 
-  const handleLogin = (user: any) => {
+  const handleLogin = (user: any, isNewUser: boolean = false) => {
     saveUserLocally(user);
     setCurrentUser(user);
+    if (isNewUser) {
+      setShowOnboarding(true);
+    }
   };
 
   const handleLogout = async () => {
@@ -293,7 +299,7 @@ export default function App() {
           onBack={() => setSelectedConvo(null)}
           onOpenProfile={setPublicProfileUser}
         />
-        {publicProfileUser && (
+         {publicProfileUser && (
            <UserProfileModal 
               userId={publicProfileUser} 
               currentUserId={currentUser._id} 
@@ -326,6 +332,10 @@ export default function App() {
                  });
               }}
            />
+        )}
+        
+        {showOnboarding && (
+           <OnboardingModal currentUser={currentUser} onClose={() => setShowOnboarding(false)} />
         )}
       </div>
     </div>
