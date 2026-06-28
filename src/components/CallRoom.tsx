@@ -33,6 +33,11 @@ const ParticipantView: React.FC<{ participant: any, isLocal?: boolean, volume?: 
     if (participant.stream && videoRef.current) {
       videoRef.current.srcObject = participant.stream;
     }
+    return () => {
+      if (videoRef.current) {
+        videoRef.current.srcObject = null;
+      }
+    };
   }, [participant.stream]);
 
   useEffect(() => {
@@ -41,7 +46,7 @@ const ParticipantView: React.FC<{ participant: any, isLocal?: boolean, volume?: 
     // Check if video is active
     const checkVideo = () => {
       const videoTracks = participant.stream.getVideoTracks();
-      setHasVideo(videoTracks.length > 0 && videoTracks.some((t: any) => t.enabled && t.readyState === 'live'));
+      setHasVideo(videoTracks.length > 0 && videoTracks.some((t: any) => t.enabled && t.readyState === 'live' && !t.muted));
     };
     checkVideo();
 
@@ -226,6 +231,11 @@ export default function CallRoom({ currentUser, conversation, callType, onEndCal
 
     return () => {
       mounted = false;
+      if (localVideoRef.current) localVideoRef.current.srcObject = null;
+      if (screenStreamRef.current) {
+        screenStreamRef.current.getTracks().forEach(t => t.stop());
+        screenStreamRef.current = null;
+      }
       cleanup();
       set(myCallRef, null);
       import("../services/soundService").then(s => s.soundService.playCallLeave());

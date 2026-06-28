@@ -59,8 +59,18 @@ export function useWebRTC({ callId, userId, userName, isGroup }: UseWebRTCParams
     };
 
     pc.ontrack = (event) => {
-      const stream = event.streams[0] || new MediaStream([event.track]);
-      setRemoteStreams((prev) => ({ ...prev, [targetId]: stream }));
+      setRemoteStreams((prev) => {
+        const existingStream = prev[targetId];
+        if (existingStream) {
+          // If we already have a stream for this user, add the new track to a new MediaStream to trigger re-render
+          const newStream = new MediaStream(existingStream.getTracks());
+          newStream.addTrack(event.track);
+          return { ...prev, [targetId]: newStream };
+        } else {
+          const stream = event.streams[0] ? new MediaStream(event.streams[0].getTracks()) : new MediaStream([event.track]);
+          return { ...prev, [targetId]: stream };
+        }
+      });
     };
 
     pc.onnegotiationneeded = async () => {

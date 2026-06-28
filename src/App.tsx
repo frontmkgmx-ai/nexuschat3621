@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import Login from "./components/Login";
 import Sidebar from "./components/Sidebar";
 import ChatWindow from "./components/ChatWindow";
+import HomeOne from "./components/HomeOne";
 import Terms from "./components/Terms";
 import UserProfileModal from "./components/UserProfileModal";
 import OnboardingModal from "./components/OnboardingModal";
@@ -265,6 +266,10 @@ export default function App() {
 
   if (window.location.pathname === '/terms') {
     return <Terms />;
+  }
+
+  if (window.location.pathname === '/homeone') {
+    return <HomeOne />;
   }
 
   if (!currentUser) {

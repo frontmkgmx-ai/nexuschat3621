@@ -650,11 +650,11 @@ export default function ChatWindow({
   const currentAura = conversation.backgroundAura?.[currentUser._id] || "none";
   const getAuraClass = (auraId: string) => {
     switch (auraId) {
-      case 'aura-purple': return 'bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-purple-600/20 via-purple-900/10 to-transparent';
-      case 'aura-blue': return 'bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-blue-600/20 via-blue-900/10 to-transparent';
-      case 'aura-green': return 'bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-emerald-600/20 via-emerald-900/10 to-transparent';
-      case 'aura-sunset': return 'bg-[radial-gradient(ellipse_at_bottom,_var(--tw-gradient-stops))] from-orange-600/20 via-pink-900/20 to-transparent';
-      case 'aura-fire': return 'bg-[radial-gradient(ellipse_at_bottom,_var(--tw-gradient-stops))] from-red-600/20 via-orange-900/20 to-transparent';
+      case 'aura-purple': return 'bg-purple-600/30';
+      case 'aura-blue': return 'bg-blue-600/30';
+      case 'aura-green': return 'bg-emerald-600/30';
+      case 'aura-sunset': return 'bg-orange-500/30';
+      case 'aura-fire': return 'bg-red-600/30';
       default: return '';
     }
   };
@@ -664,9 +664,12 @@ export default function ChatWindow({
       <div 
         className="absolute inset-0 opacity-[0.03] pointer-events-none bg-[url('https://www.transparenttextures.com/patterns/stardust.png')] z-0" 
       />
-      <div 
-        className={`absolute inset-0 pointer-events-none ${currentAura === 'none' ? 'bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-900/10 via-transparent to-transparent' : getAuraClass(currentAura)} z-0 blur-2xl`} 
-      />
+      
+      {currentAura === 'none' ? (
+        <div className="absolute inset-0 pointer-events-none z-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-900/10 via-transparent to-transparent" />
+      ) : (
+        <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[120%] h-[120%] sm:w-[80%] sm:h-[80%] rounded-full blur-[100px] sm:blur-[150px] pointer-events-none z-0 opacity-50 ${getAuraClass(currentAura)}`} />
+      )}
 
       {callType && (
         <CallRoom 
