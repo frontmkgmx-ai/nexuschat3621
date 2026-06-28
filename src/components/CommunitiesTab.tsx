@@ -28,7 +28,7 @@ export default function CommunitiesTab({ currentUser, onSelectConvo }: Communiti
         setCreating(true);
         try {
             const { uploadToR2 } = await import('../services/storageService');
-            const res = await uploadFileToBucket({ file });
+            const res = await uploadToR2({ file });
             const url = res.file.url;
             if (type === 'avatar') setNewCommAvatarUrl(url);
             if (type === 'banner') setNewCommBannerUrl(url);
@@ -304,8 +304,8 @@ const CommunityItem: React.FC<{ community: any, userGroups: any[], onOpenGroup: 
         const file = e.target.files?.[0];
         if (!file) return;
         try {
-            const { uploadFileToBucket } = await import('../services/storageService');
-            const res = await uploadFileToBucket({ file });
+            const { uploadToR2 } = await import('../services/storageService');
+            const res = await uploadToR2({ file });
             const url = res.file.url;
             if (type === 'avatar') setEditAvatarUrl(url);
             if (type === 'banner') setEditBannerUrl(url);

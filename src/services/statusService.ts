@@ -1,5 +1,5 @@
 import { db } from "../lib/firebase";
-import { collection, query, where, getDocs, addDoc, onSnapshot } from "firebase/firestore";
+import { collection, query, where, getDocs, addDoc, onSnapshot, doc, updateDoc } from "firebase/firestore";
 
 import { CALL_API_BASE } from "./callApi";
 
@@ -44,7 +44,6 @@ export const statusService = {
   },
 
   async deleteStatus(statusId: string) {
-    const { doc, updateDoc } = await import("firebase/firestore");
     const statusRef = doc(db, "statuses", statusId);
     return await updateDoc(statusRef, { deleted: true });
   }

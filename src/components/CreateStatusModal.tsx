@@ -92,7 +92,7 @@ export default function CreateStatusModal({ onClose, onPublish }: CreateStatusMo
     if (mediaFile) {
       setIsUploading(true);
       try {
-        const response = await uploadFileToBucket({ file: mediaFile, onProgress: (progress) => {
+        const response = await uploadToR2({ file: mediaFile, onProgress: (progress) => {
           setUploadProgress(progress);
         }});
         const publicUrl = response.file.url;

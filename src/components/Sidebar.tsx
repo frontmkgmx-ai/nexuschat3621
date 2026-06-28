@@ -80,8 +80,6 @@ export default function Sidebar({
   const [search, setSearch] = useState("");
   const [showAddContact, setShowAddContact] = useState(false);
   const [newContactName, setNewContactName] = useState("");
-  const [newContactPhone, setNewContactPhone] = useState("");
-  const [countryCode, setCountryCode] = useState<CountryCode>("BR");
   
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [chatOrderLayout, setChatOrderLayout] = useState<string[]>(() => {
@@ -340,15 +338,6 @@ export default function Sidebar({
     registeredUserId: c.registeredUserId || null
   }));
 
-  useEffect(() => {
-    fetch("https://ipapi.co/json/")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.country_code) setCountryCode(data.country_code as CountryCode);
-      })
-      .catch(() => {});
-  }, []);
-
   const filteredConvos = myConvos.map(c => {
     const otherId = c.participants?.find((p: string) => p !== currentUser._id);
     return { ...c, otherUser: otherId ? usersInfo[otherId] : null };
@@ -496,57 +485,38 @@ export default function Sidebar({
     }, 100);
   };
 
-  const [newContactIdentifierType, setNewContactIdentifierType] = useState<"phone" | "email">("phone");
-  const [newContactEmail, setNewContactEmail] = useState("");
+  const [newContactUsername, setNewContactUsername] = useState("");
 
   const handleAddContact = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       let registeredUserId = null;
-      let finalPhoneNumber = "";
-      let finalEmail = "";
+      let finalUsername = newContactUsername.trim();
 
-      if (newContactIdentifierType === "phone") {
-        const input = `+${getCountryCallingCode(countryCode)}${newContactPhone.replace(/\D/g, "")}`;
-        const parsed = parsePhoneNumber(input);
-        if (!parsed?.isValid()) {
-           toast.error("Número de telefone inválido.");
-           return;
-        }
-        finalPhoneNumber = parsed.number;
+      if (!finalUsername) {
+         toast.error("Usuário inválido.");
+         return;
+      }
 
-        const q = query(collection(db, "users"), where("phoneNumber", "==", finalPhoneNumber));
-        const querySnapshot = await getDocs(q);
-        if (!querySnapshot.empty) {
-          registeredUserId = querySnapshot.docs[0].id;
-        }
+      const q = query(collection(db, "users"), where("username", "==", finalUsername));
+      const querySnapshot = await getDocs(q);
+      
+      if (!querySnapshot.empty) {
+        registeredUserId = querySnapshot.docs[0].id;
       } else {
-        const inputEmail = newContactEmail.trim().toLowerCase();
-        if (!inputEmail.includes("@")) {
-          toast.error("E-mail inválido.");
-          return;
-        }
-        finalEmail = inputEmail;
-
-        const q = query(collection(db, "users"), where("googleEmail", "==", finalEmail));
-        const querySnapshot = await getDocs(q);
-        if (!querySnapshot.empty) {
-          registeredUserId = querySnapshot.docs[0].id;
-          finalPhoneNumber = querySnapshot.docs[0].data().phoneNumber || "";
-        }
+        toast.error("Usuário não encontrado.");
+        return;
       }
       
       await addDoc(collection(db, "users", currentUser._id, "contacts"), {
         name: newContactName,
-        phoneNumber: finalPhoneNumber,
-        email: finalEmail,
+        username: finalUsername,
         registeredUserId: registeredUserId,
         createdAt: Date.now()
       });
       
       setNewContactName("");
-      setNewContactPhone("");
-      setNewContactEmail("");
+      setNewContactUsername("");
       setShowAddContact(false);
     } catch (err: any) {
       toast.error(err.message || "Falha ao adicionar contato");
@@ -1183,67 +1153,20 @@ export default function Sidebar({
                       </div>
                       
                       <div className="relative z-10">
-                        <div className="flex gap-4 mb-3">
-                          <label className="flex items-center gap-2 cursor-pointer text-sm text-zinc-300">
-                            <input 
-                              type="radio" 
-                              checked={newContactIdentifierType === "phone"} 
-                              onChange={() => setNewContactIdentifierType("phone")} 
-                              className="text-indigo-500 focus:ring-indigo-500 bg-zinc-800 border-zinc-700"
-                            />
-                            Telefone
-                          </label>
-                          <label className="flex items-center gap-2 cursor-pointer text-sm text-zinc-300">
-                            <input 
-                              type="radio" 
-                              checked={newContactIdentifierType === "email"} 
-                              onChange={() => setNewContactIdentifierType("email")}
-                              className="text-indigo-500 focus:ring-indigo-500 bg-zinc-800 border-zinc-700" 
-                            />
-                            E-mail
-                          </label>
-                        </div>
-                        
-                        {newContactIdentifierType === "phone" ? (
-                          <div className="flex gap-2">
-                            <div className="relative w-24 bg-zinc-900 border border-zinc-800 rounded-xl text-zinc-400 text-sm shadow-inner group">
-                              <select 
-                                className="absolute inset-x-0 w-full h-full opacity-0 cursor-pointer"
-                                value={countryCode}
-                                onChange={(e) => setCountryCode(e.target.value as CountryCode)}
-                              >
-                                {getCountries().map((c) => (
-                                  <option key={c} value={c}>{c} (+{getCountryCallingCode(c)})</option>
-                                ))}
-                              </select>
-                              <div className="absolute inset-y-0 flex items-center justify-center w-full pointer-events-none group-focus-within:text-indigo-400 transition-colors">
-                                {countryCode} +{getCountryCallingCode(countryCode)}
-                              </div>
-                            </div>
-                            <input
-                              type="tel"
-                              required
-                              className="flex-1 bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3.5 text-zinc-100 outline-none focus:border-indigo-500 transition-colors text-sm shadow-inner tracking-wider"
-                              placeholder="Somente números"
-                              value={newContactPhone}
-                              onChange={(e) => setNewContactPhone(e.target.value)}
-                            />
-                          </div>
-                        ) : (
-                          <input
-                            type="email"
-                            required
-                            className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3.5 text-zinc-100 outline-none focus:border-indigo-500 transition-colors text-sm shadow-inner"
-                            placeholder="exemplo@email.com"
-                            value={newContactEmail}
-                            onChange={(e) => setNewContactEmail(e.target.value)}
-                          />
-                        )}
+                        <label className="text-[11px] text-indigo-400 font-bold uppercase tracking-wider mb-2 block">Nome de Usuário</label>
+                        <input
+                          type="text"
+                          required
+                          className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3.5 text-zinc-100 outline-none focus:border-indigo-500 transition-colors text-sm shadow-inner"
+                          placeholder="Nome de usuário do contato"
+                          value={newContactUsername}
+                          onChange={(e) => setNewContactUsername(e.target.value)}
+                        />
                       </div>
                       <div className="mt-2 relative z-10">
                         <button 
                           type="submit" 
-                          disabled={!newContactName || (newContactIdentifierType === "phone" ? !newContactPhone : !newContactEmail)}
+                          disabled={!newContactName || !newContactUsername}
                           className="w-full bg-indigo-600 text-white py-3.5 rounded-xl font-semibold tracking-wide hover:bg-indigo-500 disabled:opacity-50 transition-all shadow-[0_0_20px_rgba(99,102,241,0.2)]"
                         >
                           Salvar Contato

@@ -6,7 +6,7 @@ import Terms from "./components/Terms";
 import UserProfileModal from "./components/UserProfileModal";
 import { rtdb, db, auth } from "./lib/firebase";
 import { ref, set, onDisconnect, onValue } from "firebase/database";
-import { doc, getDoc, setDoc, updateDoc, onSnapshot, collection, query, orderBy, limit, arrayUnion } from "firebase/firestore";
+import { doc, getDoc, setDoc, updateDoc, onSnapshot, collection, query, orderBy, limit, arrayUnion, where, getDocs, addDoc } from "firebase/firestore";
 import { requestNotificationPermission, setupForegroundMessages, showBrowserNotification } from "./services/fcm";
 import { useNexusNative } from "./hooks/useNexusNative";
 
@@ -102,9 +102,9 @@ export default function App() {
         if (!userSnap.exists()) {
           await setDoc(userRef, {
             _id: currentUser._id,
-            username: currentUser.username || currentUser.phoneNumber,
-            phoneNumber: currentUser.phoneNumber,
-            avatarUrl: currentUser.avatarUrl || `https://api.dicebear.com/7.x/pixel-art/svg?seed=${currentUser.phoneNumber}`,
+            username: currentUser.username || "User",
+            phoneNumber: currentUser.phoneNumber || null,
+            avatarUrl: currentUser.avatarUrl || `https://api.dicebear.com/7.x/pixel-art/svg?seed=${currentUser.username || 'user'}`,
             status: "online",
             lastSeen: Date.now()
           });
@@ -300,7 +300,6 @@ export default function App() {
               onClose={() => setPublicProfileUser(null)} 
               onMessage={async () => {
                  setPublicProfileUser(null);
-                 const { query, collection, where, getDocs, addDoc } = await import("firebase/firestore");
                  const q1 = query(collection(db, "conversations"), where("participants", "array-contains", currentUser._id));
                  const snapshot = await getDocs(q1);
                  let convoId = null;

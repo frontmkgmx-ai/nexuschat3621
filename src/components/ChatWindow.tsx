@@ -127,6 +127,19 @@ const MessageBubble = React.memo(({
   
   const hasReactions = msg.reactions && Object.keys(msg.reactions).some(k => msg.reactions[k].length > 0);
   
+  let msgTime = new Date();
+  if (msg._creationTime) {
+    if (typeof msg._creationTime === 'number') {
+      msgTime = new Date(msg._creationTime);
+    } else if (msg._creationTime.toDate) {
+      msgTime = msg._creationTime.toDate();
+    } else if (msg._creationTime.seconds) {
+      msgTime = new Date(msg._creationTime.seconds * 1000);
+    } else {
+      msgTime = new Date(msg._creationTime);
+    }
+  }
+
   return (
     <motion.div 
       initial={{ opacity: 0, y: 10 }}
@@ -136,7 +149,7 @@ const MessageBubble = React.memo(({
       {showDate && (
         <div className="text-center my-6 col-span-full">
           <span className="bg-black/40 border border-white/5 backdrop-blur-md text-zinc-400 text-[10px] uppercase tracking-widest py-1.5 px-4 rounded-xl shadow-sm font-semibold">
-            {format(msg._creationTime, "d 'de' MMMM 'de' yyyy")}
+            {format(msgTime, "d 'de' MMMM 'de' yyyy")}
           </span>
         </div>
       )}
@@ -268,7 +281,7 @@ const MessageBubble = React.memo(({
               <span className={`text-[10px] font-semibold tracking-wide ${
                 justMedia ? 'text-white' : (isMine ? 'text-zinc-600' : 'text-zinc-500')
               }`}>
-                {format(msg._creationTime, "HH:mm")}
+                {format(msgTime, "HH:mm")}
               </span>
               {isMine && (
                 <span className={justMedia ? "opacity-100" : "opacity-90"}>
@@ -411,14 +424,31 @@ export default function ChatWindow({
       for (const change of changes) {
          if (change.type === 'added') {
             const data = change.doc.data();
+            let changeTime = 0;
+            if (data._creationTime) {
+               changeTime = typeof data._creationTime === 'number' ? data._creationTime : (data._creationTime.toMillis ? data._creationTime.toMillis() : (data._creationTime.seconds ? data._creationTime.seconds * 1000 : 0));
+            }
             // If it's not our own message and it was created in the last 10 seconds
-            if (data.senderId !== currentUser._id && data._creationTime > Date.now() - 10000) {
+            if (data.senderId !== currentUser._id && changeTime > Date.now() - 10000) {
                 isAnyNew = true;
             }
          }
       }
 
-      const msgs = snapshot.docs.map(doc => ({ ...doc.data(), _id: doc.id })) as any[];
+      const msgs = snapshot.docs.map(doc => {
+        const data = doc.data();
+        let creationTime = 0;
+        if (data._creationTime) {
+          if (typeof data._creationTime === 'number') {
+             creationTime = data._creationTime;
+          } else if (data._creationTime.toMillis) {
+             creationTime = data._creationTime.toMillis();
+          } else if (data._creationTime.seconds) {
+             creationTime = data._creationTime.seconds * 1000;
+          }
+        }
+        return { ...data, _id: doc.id, _creationTime: creationTime };
+      }) as any[];
       msgs.sort((a, b) => (a._creationTime || Number.MAX_SAFE_INTEGER) - (b._creationTime || Number.MAX_SAFE_INTEGER));
       
       // Filter out messages deleted localy (history cleared)
