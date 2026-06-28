@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { io, Socket } from 'socket.io-client';
-import { callApi, CALL_API_BASE } from '../services/callApi';
+import { rtdb } from '../lib/firebase';
+import { ref as dbRef, onValue, set, push, onChildAdded, remove, onDisconnect, off } from 'firebase/database';
 
 interface UseWebRTCParams {
   callId: string;
@@ -10,8 +10,6 @@ interface UseWebRTCParams {
 }
 
 export function useWebRTC({ callId, userId, userName, isGroup }: UseWebRTCParams) {
-  const [socket, setSocket] = useState<Socket | null>(null);
-  const socketRef = useRef<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
@@ -20,46 +18,9 @@ export function useWebRTC({ callId, userId, userName, isGroup }: UseWebRTCParams
   
   const pcRef = useRef<{ [targetId: string]: RTCPeerConnection }>({});
   const localStreamRef = useRef<MediaStream | null>(null);
+  const isCleaningUp = useRef(false);
 
-  const connectSocket = useCallback(() => {
-    if (socketRef.current) return;
-    const wsUrl = import.meta.env.VITE_CALL_WS_URL || CALL_API_BASE || undefined;
-    const socketPath = import.meta.env.VITE_CALL_SOCKET_PATH || '/socket.io';
-    
-    if (import.meta.env.DEV) {
-      if (!import.meta.env.VITE_CALL_WS_URL) {
-        console.error("VITE_CALL_WS_URL is missing in environment variables!");
-      }
-    }
-
-    const newSocket = io(wsUrl, {
-      path: socketPath,
-      transports: ['websocket', 'polling'],
-      secure: true,
-      reconnection: true,
-      reconnectionAttempts: 10,
-      reconnectionDelay: 1000
-    });
-
-    socketRef.current = newSocket;
-    setSocket(newSocket);
-
-    newSocket.on('connect', () => {
-      setIsConnected(true);
-      newSocket.emit('join-room', {
-        roomId: callId,
-        userId: userId,
-        displayName: userName || "User",
-        media: { audio: true, video: true, screen: false }
-      });
-    });
-
-    newSocket.on('disconnect', () => {
-      setIsConnected(false);
-    });
-  }, [callId, userId, userName]);
-
-  const getOrCreatePeerConnection = useCallback((targetId: string, currentSocket: Socket) => {
+  const getOrCreatePeerConnection = useCallback((targetId: string) => {
     if (pcRef.current[targetId]) {
       return pcRef.current[targetId];
     }
@@ -83,19 +44,12 @@ export function useWebRTC({ callId, userId, userName, isGroup }: UseWebRTCParams
     }
 
     pc.onicecandidate = (event) => {
-      if (event.candidate) {
-        currentSocket.emit('webrtc:ice-candidate', {
-          callId,
-          targetId,
-          sourceId: userId,
-          candidate: event.candidate,
-        });
-        
-        currentSocket.emit('webrtc-ice-candidate', {
-          roomId: callId,
-          targetUserId: targetId,
-          fromUserId: userId,
-          candidate: event.candidate,
+      if (event.candidate && !isCleaningUp.current) {
+        const signalRef = dbRef(rtdb, `webrtc/${callId}/signals/${targetId}`);
+        push(signalRef, {
+          sender: userId,
+          type: 'ice-candidate',
+          payload: JSON.stringify(event.candidate)
         });
       }
     };
@@ -106,14 +60,15 @@ export function useWebRTC({ callId, userId, userName, isGroup }: UseWebRTCParams
     };
 
     pc.onnegotiationneeded = async () => {
+      if (isCleaningUp.current) return;
       try {
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
-        currentSocket.emit('webrtc:offer', {
-          callId, targetId, sourceId: userId, offer
-        });
-        currentSocket.emit('webrtc-offer', {
-          roomId: callId, targetUserId: targetId, fromUserId: userId, offer
+        const signalRef = dbRef(rtdb, `webrtc/${callId}/signals/${targetId}`);
+        push(signalRef, {
+          sender: userId,
+          type: 'offer',
+          payload: JSON.stringify(offer)
         });
       } catch (err) {
         console.error('Error during renegotiation:', err);
@@ -124,165 +79,99 @@ export function useWebRTC({ callId, userId, userName, isGroup }: UseWebRTCParams
     return pc;
   }, [callId, userId]);
 
-  // Handle incoming signaling
-  useEffect(() => {
-    if (!socket) return;
+  const connectSocket = useCallback(() => {
+    isCleaningUp.current = false;
+    const participantRef = dbRef(rtdb, `webrtc/${callId}/participants/${userId}`);
+    set(participantRef, Date.now());
+    onDisconnect(participantRef).remove();
+    setIsConnected(true);
 
-    const handleOffer = async (data: any) => {
-      if ((data.targetId && data.targetId !== userId) || (data.targetUserId && data.targetUserId !== userId)) {
-        return;
+    const participantsRef = dbRef(rtdb, `webrtc/${callId}/participants`);
+    onChildAdded(participantsRef, (snapshot) => {
+      const targetId = snapshot.key;
+      if (targetId && targetId !== userId) {
+        // A new participant joined, we will initiate connection if we are "older" or just let negotiation needed handle it.
+        // The offer creation is handled by onnegotiationneeded when we add tracks, 
+        // but we need to create a PC to add tracks if not exists
+        getOrCreatePeerConnection(targetId);
       }
-      const remoteSourceId = data.sourceId || data.fromUserId; 
-      if (!remoteSourceId) return;
-      const pc = getOrCreatePeerConnection(remoteSourceId, socket);
-      
-      try {
-        const offerCollision = pc.signalingState !== "stable" || pc.localDescription?.type === "offer";
-        const polite = userId < remoteSourceId;
+    });
 
-        if (offerCollision) {
-           if (!polite) {
-              return;
-           }
-           await Promise.all([
-             pc.setLocalDescription({ type: "rollback" }),
-             pc.setRemoteDescription(new RTCSessionDescription(data.offer))
-           ]);
-        } else {
-           await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
+    onValue(participantsRef, (snapshot) => {
+      const participants = snapshot.val() || {};
+      // Handle disconnected participants
+      Object.keys(pcRef.current).forEach(targetId => {
+        if (!participants[targetId]) {
+           pcRef.current[targetId].close();
+           delete pcRef.current[targetId];
+           setRemoteStreams(prev => {
+             const next = { ...prev };
+             delete next[targetId];
+             return next;
+           });
         }
-
-        const answer = await pc.createAnswer();
-        await pc.setLocalDescription(answer);
-        
-        socket.emit('webrtc:answer', {
-          callId,
-          targetId: remoteSourceId,
-          sourceId: userId,
-          answer,
-        });
-        socket.emit('webrtc-answer', {
-          roomId: callId,
-          targetUserId: remoteSourceId,
-          fromUserId: userId,
-          answer,
-        });
-      } catch (err) {
-        console.error('Error handling offer:', err);
-      }
-    };
-
-    const handleAnswer = async (data: any) => {
-      if ((data.targetId && data.targetId !== userId) || (data.targetUserId && data.targetUserId !== userId)) {
-        return;
-      }
-      const remoteSourceId = data.sourceId || data.fromUserId;
-      if (!remoteSourceId) return;
-      const pc = pcRef.current[remoteSourceId];
-      if (pc) {
-        try {
-          if (pc.signalingState === 'have-local-offer') {
-            await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
-          }
-        } catch (err) {
-          console.error('Error handling answer:', err);
-        }
-      }
-    };
-
-    const handleIceCandidate = async (data: any) => {
-      if ((data.targetId && data.targetId !== userId) || (data.targetUserId && data.targetUserId !== userId)) {
-        return;
-      }
-      const remoteSourceId = data.sourceId || data.fromUserId;
-      const candidate = data.candidate;
-      if (!remoteSourceId || !candidate) return;
-      const pc = pcRef.current[remoteSourceId];
-      if (pc) {
-        try {
-          await pc.addIceCandidate(new RTCIceCandidate(candidate));
-        } catch (err) {
-          console.error('Error adding ice candidate:', err);
-        }
-      }
-    };
-
-    socket.on('webrtc:offer', handleOffer);
-    socket.on('webrtc-offer', handleOffer); // Server format
-    socket.on('webrtc:answer', handleAnswer);
-    socket.on('webrtc-answer', handleAnswer); // Server format
-    socket.on('webrtc:ice-candidate', handleIceCandidate);
-    socket.on('webrtc-ice-candidate', handleIceCandidate); // Server format
-
-    const handleJoined = async (data: any) => {
-      // Create offer for new participant
-      const targetUserId = data.participant?.userId || data.userId;
-      if (targetUserId && targetUserId !== userId) {
-        const pc = getOrCreatePeerConnection(targetUserId, socket);
-        try {
-          const offer = await pc.createOffer();
-          await pc.setLocalDescription(offer);
-          socket.emit('webrtc:offer', {
-            callId, targetId: targetUserId, sourceId: userId, offer
-          });
-          socket.emit('webrtc-offer', {
-            roomId: callId, targetUserId: targetUserId, offer, fromUserId: userId
-          });
-        } catch (e) {}
-      }
-    };
-    
-    const handleLeft = (data: any) => {
-      const targetId = data.userId || data.participant?.userId;
-      if (targetId && pcRef.current[targetId]) {
-        pcRef.current[targetId].close();
-        delete pcRef.current[targetId];
-      }
-      setRemoteStreams(prev => {
-        if (!targetId) return prev;
-        const next = { ...prev };
-        delete next[targetId];
-        return next;
       });
-    };
-    
-    socket.on('participant-joined', handleJoined);
-    socket.on('participant-left', handleLeft);
+    });
 
-    const handleScreenShareStart = (data: any) => {
-       const id = data.userId || data.fromUserId;
-       if (id) {
-         setActiveScreenShares(prev => new Set(prev).add(id));
-       }
-    };
-    
-    const handleScreenShareStop = (data: any) => {
-       const id = data.userId || data.fromUserId;
-       if (id) {
-         setActiveScreenShares(prev => {
-            const next = new Set(prev);
-            next.delete(id);
-            return next;
-         });
-       }
-    };
+    const mySignalsRef = dbRef(rtdb, `webrtc/${callId}/signals/${userId}`);
+    onChildAdded(mySignalsRef, async (snapshot) => {
+      const data = snapshot.val();
+      if (!data) return;
+      
+      const { sender, type, payload } = data;
+      const pc = getOrCreatePeerConnection(sender);
 
-    socket.on('screen-share-start', handleScreenShareStart);
-    socket.on('screen-share-stop', handleScreenShareStop);
+      try {
+        if (type === 'offer') {
+          const offer = JSON.parse(payload);
+          const offerCollision = pc.signalingState !== "stable" || pc.localDescription?.type === "offer";
+          const polite = userId < sender;
 
-    return () => {
-      socket.off('webrtc:offer', handleOffer);
-      socket.off('webrtc-offer', handleOffer);
-      socket.off('webrtc:answer', handleAnswer);
-      socket.off('webrtc-answer', handleAnswer);
-      socket.off('webrtc:ice-candidate', handleIceCandidate);
-      socket.off('webrtc-ice-candidate', handleIceCandidate);
-      socket.off('participant-joined', handleJoined);
-      socket.off('participant-left', handleLeft);
-      socket.off('screen-share-start', handleScreenShareStart);
-      socket.off('screen-share-stop', handleScreenShareStop);
-    };
-  }, [socket, getOrCreatePeerConnection, callId, userId]);
+          if (offerCollision) {
+             if (!polite) {
+                return;
+             }
+             await Promise.all([
+               pc.setLocalDescription({ type: "rollback" }),
+               pc.setRemoteDescription(new RTCSessionDescription(offer))
+             ]);
+          } else {
+             await pc.setRemoteDescription(new RTCSessionDescription(offer));
+          }
+
+          const answer = await pc.createAnswer();
+          await pc.setLocalDescription(answer);
+          
+          const signalRef = dbRef(rtdb, `webrtc/${callId}/signals/${sender}`);
+          push(signalRef, {
+            sender: userId,
+            type: 'answer',
+            payload: JSON.stringify(answer)
+          });
+        } else if (type === 'answer') {
+          const answer = JSON.parse(payload);
+          if (pc.signalingState === 'have-local-offer') {
+            await pc.setRemoteDescription(new RTCSessionDescription(answer));
+          }
+        } else if (type === 'ice-candidate') {
+          const candidate = JSON.parse(payload);
+          await pc.addIceCandidate(new RTCIceCandidate(candidate));
+        }
+      } catch (err) {
+        console.error('Error handling signal:', err);
+      }
+      
+      // Remove signal after processing
+      remove(snapshot.ref);
+    });
+
+    const screenSharesRef = dbRef(rtdb, `webrtc/${callId}/screenShares`);
+    onValue(screenSharesRef, (snapshot) => {
+       const shares = snapshot.val() || {};
+       setActiveScreenShares(new Set(Object.keys(shares)));
+    });
+
+  }, [callId, userId, getOrCreatePeerConnection]);
 
   const startLocalStream = useCallback(async (video: any = true, audioConstraints: any = true, quality: string = 'normal') => {
     try {
@@ -350,6 +239,13 @@ export function useWebRTC({ callId, userId, userName, isGroup }: UseWebRTCParams
     }
 
     setLocalStream(new MediaStream(localStreamRef.current.getTracks()));
+    
+    if (newVideoTrack && contentHint === 'detail') {
+       // Is screen sharing
+       set(dbRef(rtdb, `webrtc/${callId}/screenShares/${userId}`), true);
+    } else {
+       remove(dbRef(rtdb, `webrtc/${callId}/screenShares/${userId}`));
+    }
 
     // Replace in PeerConnections
     Object.values(pcRef.current).forEach((pc: unknown) => {
@@ -374,22 +270,28 @@ export function useWebRTC({ callId, userId, userName, isGroup }: UseWebRTCParams
         }
       }
     });
-  }, []);
+  }, [callId, userId]);
 
   const cleanup = useCallback(() => {
+    isCleaningUp.current = true;
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach((t) => t.stop());
     }
     Object.values(pcRef.current).forEach((pc: RTCPeerConnection) => pc.close());
     pcRef.current = {};
-    if (socketRef.current) {
-      socketRef.current.disconnect();
-      socketRef.current = null;
-    }
-  }, []);
+    setIsConnected(false);
+    
+    off(dbRef(rtdb, `webrtc/${callId}/participants`));
+    off(dbRef(rtdb, `webrtc/${callId}/signals/${userId}`));
+    off(dbRef(rtdb, `webrtc/${callId}/screenShares`));
+    
+    remove(dbRef(rtdb, `webrtc/${callId}/participants/${userId}`));
+    remove(dbRef(rtdb, `webrtc/${callId}/signals/${userId}`));
+    remove(dbRef(rtdb, `webrtc/${callId}/screenShares/${userId}`));
+  }, [callId, userId]);
 
   return {
-    socket,
+    socket: null, // Removed socket
     isConnected,
     localStream,
     remoteStreams,
@@ -401,3 +303,4 @@ export function useWebRTC({ callId, userId, userName, isGroup }: UseWebRTCParams
     pcMap: pcRef.current
   };
 }
+
