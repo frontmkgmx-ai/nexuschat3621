@@ -423,13 +423,21 @@ export default function CallRoom({ currentUser, conversation, callType, onEndCal
        replaceVideoTrack(null);
     }
 
-    await controls.stopScreenShare();
+    try {
+      await controls.stopScreenShare();
+    } catch (e) {
+      console.warn(e);
+    }
     setIsScreenSharing(false);
   };
 
 
   const endCall = async () => {
-    await controls.endCall();
+    try {
+      await controls.endCall();
+    } catch (e) {
+      console.warn("End call API failed", e);
+    }
     cleanup();
     onEndCall();
   };

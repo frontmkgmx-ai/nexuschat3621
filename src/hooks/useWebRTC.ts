@@ -36,10 +36,14 @@ export function useWebRTC({ callId, userId, userName, isGroup }: UseWebRTCParams
       ],
     });
 
-    // Add local stream tracks to PC
+    const audioTransceiver = pc.addTransceiver('audio', { direction: 'sendrecv' });
+    const videoTransceiver = pc.addTransceiver('video', { direction: 'sendrecv' });
+
+    // Add local stream tracks to PC if they exist, to the transceivers we just created
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach((track) => {
-        pc.addTrack(track, localStreamRef.current!);
+        if (track.kind === 'audio') audioTransceiver.sender.replaceTrack(track);
+        if (track.kind === 'video') videoTransceiver.sender.replaceTrack(track);
       });
     }
 
@@ -185,15 +189,14 @@ export function useWebRTC({ callId, userId, userName, isGroup }: UseWebRTCParams
       // Update existing peer connections with new tracks and adjust bitrates
       Object.values(pcRef.current).forEach((pc: unknown) => {
         const typedPc = pc as RTCPeerConnection;
-        const senders = typedPc.getSenders();
         stream.getTracks().forEach(async (track) => {
-          const sender = senders.find(s => s.track?.kind === track.kind);
-          if (sender) {
-            await sender.replaceTrack(track);
+          const transceiver = typedPc.getTransceivers().find(t => t.receiver.track.kind === track.kind || (t.sender.track && t.sender.track.kind === track.kind));
+          if (transceiver) {
+            await transceiver.sender.replaceTrack(track);
             
             // Adjust maxBitrate for Audio based on quality
             if (track.kind === 'audio') {
-               const params = sender.getParameters();
+               const params = transceiver.sender.getParameters();
                if (!params.encodings) params.encodings = [{}];
                
                let maxBitrate;
@@ -205,7 +208,7 @@ export function useWebRTC({ callId, userId, userName, isGroup }: UseWebRTCParams
                if (maxBitrate) {
                  params.encodings[0].maxBitrate = maxBitrate;
                  try {
-                   await sender.setParameters(params);
+                   await transceiver.sender.setParameters(params);
                  } catch (e) {}
                }
             }
@@ -250,14 +253,15 @@ export function useWebRTC({ callId, userId, userName, isGroup }: UseWebRTCParams
     // Replace in PeerConnections
     Object.values(pcRef.current).forEach((pc: unknown) => {
       const typedPc = pc as RTCPeerConnection;
-      const videoSender = typedPc.getSenders().find(s => s.track && s.track.kind === 'video');
-      if (videoSender) {
-        videoSender.replaceTrack(newVideoTrack).then(() => {
+      const videoTransceiver = typedPc.getTransceivers().find(t => t.receiver.track.kind === 'video' || (t.sender.track && t.sender.track.kind === 'video'));
+      
+      if (videoTransceiver) {
+        videoTransceiver.sender.replaceTrack(newVideoTrack).then(() => {
           if (maxBitrate && newVideoTrack) {
-             const params = videoSender.getParameters();
+             const params = videoTransceiver.sender.getParameters();
              if (!params.encodings) params.encodings = [{}];
              params.encodings[0].maxBitrate = maxBitrate;
-             videoSender.setParameters(params).catch(e => console.error("Could not set maxBitrate", e));
+             videoTransceiver.sender.setParameters(params).catch(e => console.error("Could not set maxBitrate", e));
           }
         });
       } else if (newVideoTrack) {
@@ -274,20 +278,25 @@ export function useWebRTC({ callId, userId, userName, isGroup }: UseWebRTCParams
 
   const cleanup = useCallback(() => {
     isCleaningUp.current = true;
-    if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach((t) => t.stop());
+    try {
+      if (localStreamRef.current) {
+        localStreamRef.current.getTracks().forEach((t) => t.stop());
+        localStreamRef.current = null;
+      }
+      Object.values(pcRef.current).forEach((pc: RTCPeerConnection) => pc.close());
+      pcRef.current = {};
+      setIsConnected(false);
+      
+      off(dbRef(rtdb, `webrtc/${callId}/participants`));
+      off(dbRef(rtdb, `webrtc/${callId}/signals/${userId}`));
+      off(dbRef(rtdb, `webrtc/${callId}/screenShares`));
+      
+      remove(dbRef(rtdb, `webrtc/${callId}/participants/${userId}`)).catch(() => {});
+      remove(dbRef(rtdb, `webrtc/${callId}/signals/${userId}`)).catch(() => {});
+      remove(dbRef(rtdb, `webrtc/${callId}/screenShares/${userId}`)).catch(() => {});
+    } catch (err) {
+      console.error("Error during WebRTC cleanup", err);
     }
-    Object.values(pcRef.current).forEach((pc: RTCPeerConnection) => pc.close());
-    pcRef.current = {};
-    setIsConnected(false);
-    
-    off(dbRef(rtdb, `webrtc/${callId}/participants`));
-    off(dbRef(rtdb, `webrtc/${callId}/signals/${userId}`));
-    off(dbRef(rtdb, `webrtc/${callId}/screenShares`));
-    
-    remove(dbRef(rtdb, `webrtc/${callId}/participants/${userId}`));
-    remove(dbRef(rtdb, `webrtc/${callId}/signals/${userId}`));
-    remove(dbRef(rtdb, `webrtc/${callId}/screenShares/${userId}`));
   }, [callId, userId]);
 
   return {
