@@ -16,27 +16,49 @@ import { Toaster, toast } from 'sonner';
 
 export default function App() {
   const { isNative } = useNexusNative();
+  const [pathname, setPathname] = useState(() => window.location.pathname);
+
+  useEffect(() => {
+    const handleLocationChange = () => {
+      setPathname(window.location.pathname);
+    };
+    window.addEventListener('popstate', handleLocationChange);
+    return () => window.removeEventListener('popstate', handleLocationChange);
+  }, []);
+
+  const normalizedPath = pathname.replace(/\/$/, '').toLowerCase();
+
   const [currentUser, setCurrentUser] = useState<any>(() => {
     try {
       const saved = localStorage.getItem("chat_user_v2");
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (parsed.expiresAt && Date.now() < parsed.expiresAt) {
-          return parsed.user;
-        } else {
-          localStorage.removeItem("chat_user_v2");
+        if (parsed && parsed.user && parsed.user._id) {
+          if (parsed.expiresAt && Date.now() < parsed.expiresAt) {
+            return parsed.user;
+          } else {
+            localStorage.removeItem("chat_user_v2");
+          }
         }
       }
-    } catch (e) {}
+    } catch (e) {
+      console.error("Error reading localStorage user:", e);
+    }
     
     // Fallback for old session users
-    const oldSaved = sessionStorage.getItem("chat_user");
-    if (oldSaved) {
-       const user = JSON.parse(oldSaved);
-       const expiresAt = Date.now() + 7 * 24 * 60 * 60 * 1000;
-       localStorage.setItem("chat_user_v2", JSON.stringify({ user, expiresAt }));
-       sessionStorage.removeItem("chat_user");
-       return user;
+    try {
+      const oldSaved = sessionStorage.getItem("chat_user");
+      if (oldSaved) {
+        const user = JSON.parse(oldSaved);
+        if (user && user._id) {
+          const expiresAt = Date.now() + 7 * 24 * 60 * 60 * 1000;
+          localStorage.setItem("chat_user_v2", JSON.stringify({ user, expiresAt }));
+          sessionStorage.removeItem("chat_user");
+          return user;
+        }
+      }
+    } catch (e) {
+      console.error("Error reading sessionStorage user:", e);
     }
     return null;
   });
@@ -45,6 +67,7 @@ export default function App() {
   const [isFirebaseReady, setIsFirebaseReady] = useState(false);
 
   const saveUserLocally = (user: any) => {
+    if (!user) return;
     const expiresAt = Date.now() + 7 * 24 * 60 * 60 * 1000; // 7 days
     localStorage.setItem("chat_user_v2", JSON.stringify({ user, expiresAt }));
   };
@@ -52,7 +75,10 @@ export default function App() {
   const [publicProfileUser, setPublicProfileUser] = useState<any>(null);
 
   useEffect(() => {
-    if (!currentUser) return;
+    if (!currentUser?._id) {
+      setIsFirebaseReady(true);
+      return;
+    }
 
     const checkJoinLink = async () => {
         const path = window.location.pathname;
@@ -99,11 +125,18 @@ export default function App() {
 
     const setupFirebaseUser = async () => {
       try {
+        if (!currentUser?._id) {
+          setIsFirebaseReady(true);
+          return;
+        }
         // Ensure user exists in Firestore
         const userRef = doc(db, "users", currentUser._id);
-        const userSnap = await getDoc(userRef);
+        const userSnap = await getDoc(userRef).catch((e) => {
+          console.error("Error fetching user ref:", e);
+          return null;
+        });
         
-        if (!userSnap.exists()) {
+        if (userSnap && !userSnap.exists()) {
           await setDoc(userRef, {
             _id: currentUser._id,
             username: currentUser.username || "User",
@@ -111,7 +144,7 @@ export default function App() {
             avatarUrl: currentUser.avatarUrl || `https://api.dicebear.com/7.x/pixel-art/svg?seed=${currentUser.username || 'user'}`,
             status: "online",
             lastSeen: Date.now()
-          });
+          }).catch(e => console.error("Error creating user doc:", e));
         }
 
         // Keep current user updated in real-time
@@ -143,6 +176,8 @@ export default function App() {
               return updated;
             });
           }
+        }, (err) => {
+          console.error("onSnapshot userRef error:", err);
         });
         
         setIsFirebaseReady(true);
@@ -153,21 +188,29 @@ export default function App() {
 
         const setOnline = () => {
           setCurrentUser((prev: any) => ({ ...prev, status: "online" }));
-          set(statusRef, "online");
-          set(lastOnlineRef, Date.now());
-          updateDoc(doc(db, "users", currentUser._id), { status: "online", lastSeen: Date.now() }).catch(() => {});
+          set(statusRef, "online").catch(() => {});
+          set(lastOnlineRef, Date.now()).catch(() => {});
+          if (currentUser?._id) {
+            updateDoc(doc(db, "users", currentUser._id), { status: "online", lastSeen: Date.now() }).catch(() => {});
+          }
         };
         const setIdle = () => {
           setCurrentUser((prev: any) => ({ ...prev, status: "idle" }));
-          set(statusRef, "idle");
-          updateDoc(doc(db, "users", currentUser._id), { status: "idle" }).catch(() => {});
+          set(statusRef, "idle").catch(() => {});
+          if (currentUser?._id) {
+            updateDoc(doc(db, "users", currentUser._id), { status: "idle" }).catch(() => {});
+          }
         };
         
         setOnline();
 
         // Setup disconnect behavior
-        onDisconnect(statusRef).set("offline");
-        onDisconnect(lastOnlineRef).set(Date.now());
+        try {
+          onDisconnect(statusRef).set("offline");
+          onDisconnect(lastOnlineRef).set(Date.now());
+        } catch(e) {
+          console.warn("RTDB onDisconnect warning:", e);
+        }
 
         const resetIdleTimer = () => {
           clearTimeout(timeout);
@@ -182,9 +225,11 @@ export default function App() {
         window.addEventListener("blur", setIdle);
         
         // FCM Initialization
-        requestNotificationPermission(currentUser._id).then(granted => {
-           if (granted) setupForegroundMessages();
-        });
+        if (currentUser?._id) {
+          requestNotificationPermission(currentUser._id).then(granted => {
+             if (granted) setupForegroundMessages();
+          }).catch(e => console.error("FCM error:", e));
+        }
       } catch(e) {
         console.error("Firebase auth error:", e);
         // Fallback: still show the UI even if realtime db/presence failed
@@ -211,6 +256,8 @@ export default function App() {
               }
            }
        });
+    }, (err) => {
+      console.warn("appUpdates snapshot error:", err);
     });
 
     const handleUnload = () => {
@@ -255,20 +302,22 @@ export default function App() {
   };
 
   useEffect(() => {
-    const handleContextMenu = (e: MouseEvent) => {
-      e.preventDefault();
-    };
-    document.addEventListener('contextmenu', handleContextMenu);
-    return () => {
-      document.removeEventListener('contextmenu', handleContextMenu);
-    };
-  }, []);
+    if (isNative) {
+      const handleContextMenu = (e: MouseEvent) => {
+        e.preventDefault();
+      };
+      document.addEventListener('contextmenu', handleContextMenu);
+      return () => {
+        document.removeEventListener('contextmenu', handleContextMenu);
+      };
+    }
+  }, [isNative]);
 
-  if (window.location.pathname === '/terms') {
+  if (normalizedPath === '/terms') {
     return <Terms />;
   }
 
-  if (window.location.pathname === '/homeone') {
+  if (normalizedPath === '/homeone') {
     return <HomeOne />;
   }
 
@@ -277,7 +326,12 @@ export default function App() {
   }
 
   if (!isFirebaseReady) {
-    return <div className="h-[100dvh] w-full bg-zinc-950 flex items-center justify-center text-zinc-500">Initializing Secure Link...</div>;
+    return (
+      <div className="h-[100dvh] w-full bg-zinc-950 flex flex-col items-center justify-center text-zinc-400 gap-3 font-sans">
+        <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+        <span className="text-sm font-medium">Conectando ao Nexus...</span>
+      </div>
+    );
   }
 
   return (

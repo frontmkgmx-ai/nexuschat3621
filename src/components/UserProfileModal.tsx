@@ -81,7 +81,7 @@ export default function UserProfileModal({ userId, onClose, currentUserId, onMes
                   <div className="flex items-center gap-2 mb-1">
                      <h2 className="text-2xl font-bold text-white">{user.username}</h2>
                      {(user.settings?.twoFactorAuth || user._id === currentUserId) && (
-                         <ShieldCheck className="w-5 h-5 text-indigo-400" title="Conta Verificada" />
+                         <span title="Conta Verificada"><ShieldCheck className="w-5 h-5 text-indigo-400" /></span>
                      )}
                      {(user.role === 'admin' || user.role === 'AdminUser') && (
                          <div className="ml-2 bg-gradient-to-r from-red-500/20 to-red-600/20 border border-red-500/30 text-red-400 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 shadow-sm">

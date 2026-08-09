@@ -269,7 +269,6 @@ export default function Inpage({ currentUser }: { currentUser: any }) {
                      style={{
                        width: index < viewingStatusIdx ? "100%" : (index === viewingStatusIdx ? "100%" : "0%"),
                        transition: index === viewingStatusIdx ? `width ${statusDuration}s linear` : 'none',
-                       transitionPlayState: isPaused ? 'paused' : 'running',
                        animationPlayState: isPaused ? 'paused' : 'running'
                      }}
                      onTransitionEnd={() => {

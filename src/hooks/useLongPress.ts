@@ -5,7 +5,7 @@ export function useLongPress(
   onClick: (e: React.PointerEvent) => void,
   { delay = 500 } = {}
 ) {
-  const timeout = useRef<NodeJS.Timeout>();
+  const timeout = useRef<NodeJS.Timeout | null>(null);
   const isLongPress = useRef(false);
 
   const start = useCallback(

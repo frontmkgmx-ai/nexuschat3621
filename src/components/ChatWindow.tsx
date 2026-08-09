@@ -504,9 +504,9 @@ export default function ChatWindow({
   const handleContextMenu = (e: React.PointerEvent | React.MouseEvent, msg: any) => {
     let clientX, clientY;
     
-    if ('touches' in e && e.touches && e.touches.length > 0) {
-      clientX = e.touches[0].clientX;
-      clientY = e.touches[0].clientY;
+    if ('touches' in e && (e as any).touches && (e as any).touches.length > 0) {
+      clientX = (e as any).touches[0].clientX;
+      clientY = (e as any).touches[0].clientY;
     } else if ('clientX' in e) {
       clientX = (e as React.MouseEvent).clientX;
       clientY = (e as React.MouseEvent).clientY;

@@ -847,11 +847,11 @@ export default function Sidebar({
                   return (
                     <motion.div
                       draggable
-                      onDragStart={(e) => {
+                      onDragStart={(e: any) => {
                          setDraggedId(convo._id);
                          if(e.dataTransfer) e.dataTransfer.effectAllowed = "move";
                       }}
-                      onDragOver={(e) => {
+                      onDragOver={(e: any) => {
                          e.preventDefault();
                          if(e.dataTransfer) e.dataTransfer.dropEffect = "move";
                       }}
@@ -1050,7 +1050,7 @@ export default function Sidebar({
                                     if (!name && !email && !phone) continue;
                                     if (phone) phone = phone.replace(/[^0-9+]/g, '');
                                     
-                                    const exists = contacts.find(c => (phone && c.phoneNumber === phone) || (email && c.email === email));
+                                    const exists = contacts.find((c: any) => (phone && c.phoneNumber === phone) || (email && c.email === email));
                                     if (!exists) {
                                        await addDoc(collection(db, "users", currentUser._id, "contacts"), {
                                            name: name || email || phone,
@@ -1145,7 +1145,7 @@ export default function Sidebar({
                             )}
                           </div>
                           <div className="text-xs text-zinc-500 truncate font-medium">
-                            {contact.email || contact.phoneNumber}
+                            {(contact as any).email || contact.phoneNumber}
                           </div>
                         </div>
                       </motion.div>
