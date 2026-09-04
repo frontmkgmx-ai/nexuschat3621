@@ -1,9 +1,12 @@
 {
   "name": "Nexus Chat",
-  "description": "A robust real-time messenger application built with React, Tailwind CSS, and Supabase featuring S3-native media uploads, status stories, real-time sync, and user profile management.",
+  "description": "Real-time native Android chat and WebRTC video calling application with Jetpack Compose, Firebase synchronization, and automated GitHub Actions CI/CD APK pipeline.",
   "requestFramePermissions": [
     "camera",
     "microphone",
     "display-capture"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
   ]
 }
