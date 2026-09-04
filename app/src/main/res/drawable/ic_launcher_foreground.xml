@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Nexus Glow Circle Background -->
+    <path
+        android:fillColor="#242C56"
+        android:pathData="M54,54m-28,0a28,28 0 1,0 56,0a28,28 0 1,0 -56,0" />
+    <!-- Outer Node Ring / Chat indicator -->
+    <path
+        android:fillColor="#6366F1"
+        android:pathData="M54,30a24,24 0 0,1 24,24c0,5.8 -2.1,11.2 -5.6,15.3l3.6,8.7 -9.2,-3.5c-3.7,2.2 -8,3.5 -12.8,3.5a24,24 0 0,1 -24,-24a24,24 0 0,1 24,-24z" />
+    <!-- Inner Dark Core -->
+    <path
+        android:fillColor="#0F1426"
+        android:pathData="M54,54m-19,0a19,19 0 1,0 38,0a19,19 0 1,0 -38,0" />
+    <!-- Stylized N Connector Line (Cyan to Violet) -->
+    <!-- Left vertical bar -->
+    <path
+        android:fillColor="#06B6D4"
+        android:pathData="M42,43h4v22h-4z" />
+    <!-- Right vertical bar -->
+    <path
+        android:fillColor="#EC4899"
+        android:pathData="M62,43h4v22h-4z" />
+    <!-- Diagonal connector -->
+    <path
+        android:fillColor="#818CF8"
+        android:pathData="M43,43l19,21h4l-19,-21z" />
+    <!-- Nodes -->
+    <path
+        android:fillColor="#38BDF8"
+        android:pathData="M44,43m-3.5,0a3.5,3.5 0 1,0 7,0a3.5,3.5 0 1,0 -7,0" />
+    <path
+        android:fillColor="#F472B6"
+        android:pathData="M64,65m-3.5,0a3.5,3.5 0 1,0 7,0a3.5,3.5 0 1,0 -7,0" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,54m-2.5,0a2.5,2.5 0 1,0 5,0a2.5,2.5 0 1,0 -5,0" />
+</vector>
