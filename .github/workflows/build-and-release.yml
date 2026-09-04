@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - master
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -30,14 +31,12 @@ jobs:
         uses: gradle/actions/setup-gradle@v3
         with:
           gradle-version: '8.7'
-          cache-read-only: false
-
-      - name: Make gradlew executable
-        run: chmod +x ./gradlew
-        continue-on-error: true
+          cache-disabled: true
 
       - name: Build Debug APK
-        run: gradle assembleDebug --info --stacktrace --no-daemon -x test -x lint
+        run: |
+          if [ -d "android" ]; then cd android; fi
+          gradle assembleDebug --no-daemon --stacktrace
 
       - name: Generate Tag
         id: tag_gen
@@ -50,4 +49,9 @@ jobs:
         with:
           tag_name: ${{ steps.tag_gen.outputs.tag_name }}
           name: Release ${{ steps.tag_gen.outputs.tag_name }}
-          files: app/build/outputs/apk/debug/*.apk
+          draft: false
+          prerelease: false
+          files: |
+            **/build/outputs/apk/debug/*.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
