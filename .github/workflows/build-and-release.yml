@@ -12,14 +12,13 @@ permissions:
 
 jobs:
   build:
-    name: Build APK
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 1
+          fetch-depth: 0
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -33,25 +32,19 @@ jobs:
           gradle-version: '8.7'
           cache-disabled: true
 
+      - name: Accept Android SDK Licenses
+        run: yes | sdkmanager --licenses || true
+
       - name: Build Debug APK
-        run: |
-          if [ -d "android" ]; then cd android; fi
-          gradle assembleDebug --no-daemon --stacktrace
+        run: gradle assembleDebug --no-daemon --stacktrace
 
-      - name: Generate Tag
-        id: tag_gen
-        run: |
-          TAG_NAME="v1.0.${{ github.run_number }}-${{ github.sha }}"
-          echo "tag_name=${TAG_NAME}" >> $GITHUB_OUTPUT
-
-      - name: Create Release
+      - name: Create Release and Upload APK
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.tag_gen.outputs.tag_name }}
-          name: Release ${{ steps.tag_gen.outputs.tag_name }}
+          tag_name: v1.0.${{ github.run_number }}-${{ github.sha }}
+          name: Release v1.0.${{ github.run_number }}
           draft: false
           prerelease: false
-          files: |
-            **/build/outputs/apk/debug/*.apk
+          files: app/build/outputs/apk/debug/*.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
