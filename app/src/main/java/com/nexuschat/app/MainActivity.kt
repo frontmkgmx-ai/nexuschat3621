@@ -2,13 +2,17 @@ package com.nexuschat.app
 
 import android.annotation.SuppressLint
 import android.os.Bundle
+import android.webkit.ConsoleMessage
 import android.webkit.PermissionRequest
 import android.webkit.WebChromeClient
+import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
+import androidx.webkit.WebViewAssetLoader
 
 class MainActivity : ComponentActivity() {
 
@@ -17,6 +21,12 @@ class MainActivity : ComponentActivity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Configura o AssetLoader para rodar sob origem segura virtual HTTPS
+        // Isso resolve o bloqueio de ES Modules (type="module") do Vite e libera o LocalStorage/IndexedDB
+        val assetLoader = WebViewAssetLoader.Builder()
+            .addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(this))
+            .build()
 
         webView = WebView(this).apply {
             settings.apply {
@@ -33,15 +43,25 @@ class MainActivity : ComponentActivity() {
             }
 
             webViewClient = object : WebViewClient() {
-                override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
-                    url?.let { view?.loadUrl(it) }
-                    return true
+                override fun shouldInterceptRequest(
+                    view: WebView?,
+                    request: WebResourceRequest?
+                ): WebResourceResponse? {
+                    return request?.url?.let { assetLoader.shouldInterceptRequest(it) }
+                }
+
+                override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+                    return false
                 }
             }
 
             webChromeClient = object : WebChromeClient() {
                 override fun onPermissionRequest(request: PermissionRequest?) {
                     request?.grant(request.resources)
+                }
+
+                override fun onConsoleMessage(consoleMessage: ConsoleMessage?): Boolean {
+                    return super.onConsoleMessage(consoleMessage)
                 }
             }
         }
@@ -58,7 +78,8 @@ class MainActivity : ComponentActivity() {
             }
         })
 
-        webView.loadUrl("file:///android_asset/www/index.html")
+        // Carrega via domínio virtual seguro em vez de file://
+        webView.loadUrl("https://appassets.androidplatform.net/assets/www/index.html")
     }
 
     override fun onDestroy() {
