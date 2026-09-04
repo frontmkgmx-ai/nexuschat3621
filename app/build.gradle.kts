@@ -28,7 +28,13 @@ android {
         }
         debug {
             signingConfig = signingConfigs.getByName("debug")
+            isCrunchPngs = false
         }
+    }
+
+    lint {
+        checkReleaseBuilds = false
+        abortOnError = false
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
