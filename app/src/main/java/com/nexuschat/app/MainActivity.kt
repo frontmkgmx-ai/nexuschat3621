@@ -2,6 +2,7 @@ package com.nexuschat.app
 
 import android.annotation.SuppressLint
 import android.os.Bundle
+import android.util.Log
 import android.webkit.ConsoleMessage
 import android.webkit.PermissionRequest
 import android.webkit.WebChromeClient
@@ -12,7 +13,6 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
-import androidx.webkit.WebViewAssetLoader
 
 class MainActivity : ComponentActivity() {
 
@@ -22,11 +22,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Configura o AssetLoader para rodar sob origem segura virtual HTTPS
-        // Isso resolve o bloqueio de ES Modules (type="module") do Vite e libera o LocalStorage/IndexedDB
-        val assetLoader = WebViewAssetLoader.Builder()
-            .addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(this))
-            .build()
+        WebView.setWebContentsDebuggingEnabled(true)
 
         webView = WebView(this).apply {
             settings.apply {
@@ -47,7 +43,47 @@ class MainActivity : ComponentActivity() {
                     view: WebView?,
                     request: WebResourceRequest?
                 ): WebResourceResponse? {
-                    return request?.url?.let { assetLoader.shouldInterceptRequest(it) }
+                    val url = request?.url ?: return null
+                    if (url.host == "localhost") {
+                        val rawPath = url.path?.trimStart('/') ?: ""
+                        val assetPath = if (rawPath.isEmpty() || rawPath == "index.html") "index.html" else rawPath
+
+                        return try {
+                            val stream = assets.open(assetPath)
+                            val mime = when {
+                                assetPath.endsWith(".html") -> "text/html"
+                                assetPath.endsWith(".js") || assetPath.endsWith(".mjs") -> "application/javascript"
+                                assetPath.endsWith(".css") -> "text/css"
+                                assetPath.endsWith(".json") -> "application/json"
+                                assetPath.endsWith(".png") -> "image/png"
+                                assetPath.endsWith(".jpg") || assetPath.endsWith(".jpeg") -> "image/jpeg"
+                                assetPath.endsWith(".svg") -> "image/svg+xml"
+                                assetPath.endsWith(".webp") -> "image/webp"
+                                assetPath.endsWith(".woff2") -> "font/woff2"
+                                assetPath.endsWith(".woff") -> "font/woff"
+                                assetPath.endsWith(".ttf") -> "font/ttf"
+                                else -> "application/octet-stream"
+                            }
+                            WebResourceResponse(mime, "UTF-8", stream).apply {
+                                responseHeaders = mapOf(
+                                    "Access-Control-Allow-Origin" to "*",
+                                    "Access-Control-Allow-Methods" to "GET, OPTIONS",
+                                    "Access-Control-Allow-Headers" to "*"
+                                )
+                            }
+                        } catch (e: Exception) {
+                            if (!assetPath.contains(".")) {
+                                try {
+                                    WebResourceResponse("text/html", "UTF-8", assets.open("index.html"))
+                                } catch (_: Exception) {
+                                    null
+                                }
+                            } else {
+                                null
+                            }
+                        }
+                    }
+                    return super.shouldInterceptRequest(view, request)
                 }
 
                 override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
@@ -61,6 +97,7 @@ class MainActivity : ComponentActivity() {
                 }
 
                 override fun onConsoleMessage(consoleMessage: ConsoleMessage?): Boolean {
+                    Log.d("WebViewConsole", "${consoleMessage?.message()} [line:${consoleMessage?.lineNumber()}]")
                     return super.onConsoleMessage(consoleMessage)
                 }
             }
@@ -78,8 +115,7 @@ class MainActivity : ComponentActivity() {
             }
         })
 
-        // Carrega via domínio virtual seguro em vez de file://
-        webView.loadUrl("https://appassets.androidplatform.net/assets/www/index.html")
+        webView.loadUrl("https://localhost/index.html")
     }
 
     override fun onDestroy() {
