@@ -1,6 +1,6 @@
 {
   "name": "Nexus Chat",
-  "description": "Real-time native Android chat and WebRTC video calling application with Jetpack Compose, Firebase synchronization, and automated GitHub Actions CI/CD APK pipeline.",
+  "description": "Real-time communication and video calling application embedded natively with offline assets for Android APK packaging and Cloudflare Pages deployment.",
   "requestFramePermissions": [
     "camera",
     "microphone",
