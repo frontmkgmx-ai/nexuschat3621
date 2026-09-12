@@ -13,12 +13,11 @@ function cleanEnvUrl(url?: string): string {
   return url;
 }
 
-export const R2_PUBLIC_URL = cleanEnvUrl(import.meta.env.VITE_R2_PUBLIC_URL) || "https://storage.cysmk.online";
+const MYCLOUD_BUCKET_ID = "5500ceff-6d51-4f33-aee4-a07e2725ddaf";
 
 function generateUniquePath(file: File, folder: string = 'files'): string {
   const timestamp = Date.now();
   const randomStr = Math.random().toString(36).substring(2, 15);
-  // Remove special chars and keep extension
   const ext = file.name.split('.').pop()?.toLowerCase() || 'bin';
   return `${folder}/${timestamp}-${randomStr}.${ext}`;
 }
@@ -28,7 +27,8 @@ export function getPublicFileUrl(path: string): string {
   if (path.startsWith('http://') || path.startsWith('https://')) return path;
   
   const cleanPath = path.startsWith('/') ? path.substring(1) : path;
-  return `${R2_PUBLIC_URL}/${cleanPath}`;
+  // Proxy via server to inject X-API-Key natively without exposing to frontend
+  return `${CALL_API_BASE}/api/storage/v1/buckets/${MYCLOUD_BUCKET_ID}/objects/${encodeURIComponent(cleanPath)}/stream`;
 }
 
 export function getEmbedFileUrl(path: string): string {
@@ -45,7 +45,7 @@ export function sanitizeUrl(url: string | null | undefined): string {
 }
 
 export async function getSysInfo(): Promise<{ status: string, storage: string }> {
-  return { status: "online", storage: "cloudflare-r2" };
+  return { status: "online", storage: "mycloud" };
 }
 
 interface UploadFileParams {
@@ -61,7 +61,7 @@ interface UploadedFileSuccess {
   mimeType: string;
   size: number;
   storage: string;
-  file?: any; // For backward compatibility
+  file?: any; 
 }
 
 export async function uploadToR2({ file, folder = 'files', onProgress }: UploadFileParams): Promise<UploadedFileSuccess> {
@@ -70,9 +70,11 @@ export async function uploadToR2({ file, folder = 'files', onProgress }: UploadF
 
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    // Use the backend proxy instead of presigned URL to avoid R2 CORS issues
-    xhr.open("PUT", `/api/storage/upload?filename=${encodeURIComponent(path)}`);
-    xhr.setRequestHeader("Content-Type", contentType);
+    const url = `${CALL_API_BASE}/api/storage/v1/buckets/${MYCLOUD_BUCKET_ID}/objects`;
+    xhr.open("POST", url);
+    
+    const formData = new FormData();
+    formData.append("file", file, path);
     
     xhr.upload.onprogress = (event) => {
       if (event.lengthComputable && onProgress) {
@@ -82,23 +84,27 @@ export async function uploadToR2({ file, folder = 'files', onProgress }: UploadF
     
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) {
-        const publicUrl = getPublicFileUrl(path);
+        let fileId = path;
+        try {
+           const response = JSON.parse(xhr.responseText);
+           fileId = response.id || response.key || response.filename || response.name || path;
+        } catch(e) {}
         
-        // Return standardized object
+        const publicUrl = getPublicFileUrl(fileId);
+        
         const result = {
           success: true,
-          key: path,
+          key: fileId,
           url: publicUrl,
           mimeType: contentType,
           size: file.size,
-          storage: "cloudflare-r2",
-          // Keep backward compatibility fields
+          storage: "mycloud",
           file: {
             name: file.name,
             mimeType: contentType,
             size: file.size,
-            filename: path.split('/').pop(),
-            path: path,
+            filename: fileId.split('/').pop(),
+            path: fileId,
             url: publicUrl,
             createdAt: new Date().toISOString()
           }
@@ -109,8 +115,8 @@ export async function uploadToR2({ file, folder = 'files', onProgress }: UploadF
       }
     };
     
-    xhr.onerror = () => reject(new Error("Falha na rede ou erro na proxy de upload pro servidor. Verifique recursos ou limite de tamanho."));
-    xhr.send(file);
+    xhr.onerror = () => reject(new Error("Falha na rede ou erro na proxy de upload pro servidor."));
+    xhr.send(formData);
   });
 }
 
@@ -174,7 +180,8 @@ export async function uploadVoiceToStorage(conversationId: string, messageId: st
     path: result.key, 
     url: result.url, 
     size: result.size, 
-    mimeType: result.mimeType 
+    mimeType: result.mimeType,
+    file: result.file
   };
 }
 
@@ -184,49 +191,42 @@ export function getVoiceMediaUrl(path: string): string {
 
 export async function deleteFile(fileIdOrPath: string): Promise<{success: boolean}> {
   let file = fileIdOrPath;
-  if (fileIdOrPath.includes('/')) {
-     // Ensure we don't strip useful folders if it's not a supabase url
-     if (fileIdOrPath.includes('chatgeral/')) {
-        file = fileIdOrPath.split('chatgeral/').pop() || fileIdOrPath;
-     } else if (fileIdOrPath.startsWith('http')) {
-        // Try to extract path from URL
-        try {
-           const urlObj = new URL(fileIdOrPath);
-           file = urlObj.pathname.substring(1);
-        } catch(e) {}
-     }
+  if (fileIdOrPath.startsWith('http')) {
+    const match = fileIdOrPath.match(/\/objects\/([^\/]+)\/stream/);
+    if (match) {
+       file = decodeURIComponent(match[1]);
+    } else {
+       file = fileIdOrPath.split('/').pop() || fileIdOrPath;
+    }
   }
 
-  const res = await fetch(`/api/storage/delete`, {
+  const res = await fetch(`${CALL_API_BASE}/api/storage/v1/buckets/${MYCLOUD_BUCKET_ID}/objects/${encodeURIComponent(file)}`, {
       method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ filename: file })
+      headers: { "Content-Type": "application/json" }
   });
   
   if (!res.ok) {
-     throw new Error("Erro na camada HTTPS ao enviar instrução letal (Delete) ao Backend R2.");
+     throw new Error("Erro na camada HTTPS ao enviar instrução letal (Delete) ao Backend Proxy.");
   }
   
   return { success: true };
 }
 
 export async function listFiles(bucket = "attachments"): Promise<any[]> {
-  const res = await fetch(`/api/storage/file-info`);
+  const res = await fetch(`${CALL_API_BASE}/api/storage/v1/buckets/${MYCLOUD_BUCKET_ID}/objects`);
   if (!res.ok) return [];
   const data = await res.json();
-  const contents = data.contents || [];
+  const contents = data.objects || data.contents || data || [];
   
   return contents.map((obj: any) => ({
-    name: obj.Key,
-    id: obj.Key,
-    updated_at: obj.LastModified,
-    created_at: obj.LastModified,
-    last_accessed_at: obj.LastModified,
+    name: obj.name || obj.id || obj.Key,
+    id: obj.id || obj.Key || obj.name,
+    updated_at: obj.updated_at || obj.LastModified,
+    created_at: obj.created_at || obj.LastModified,
+    last_accessed_at: obj.last_accessed_at || obj.LastModified,
     metadata: {
-      size: obj.Size,
-      mimetype: obj.Key?.endsWith('.jpg') || obj.Key?.endsWith('.jpeg') ? 'image/jpeg' 
-              : obj.Key?.endsWith('.png') ? 'image/png' 
-              : obj.Key?.endsWith('.mp4') ? 'video/mp4' : 'application/octet-stream'
+      size: obj.size || obj.Size,
+      mimetype: obj.mimetype || obj.metadata?.mimetype || 'application/octet-stream'
     }
   }));
 }
@@ -234,3 +234,6 @@ export async function listFiles(bucket = "attachments"): Promise<any[]> {
 export async function mkdirFileApi(path: string): Promise<{success: boolean}> {
   return { success: true };
 }
+
+export const uploadToMyCloud = uploadToR2;
+export { MYCLOUD_BUCKET_ID };

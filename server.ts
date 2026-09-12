@@ -1,4 +1,5 @@
 import express from "express";
+import { createProxyMiddleware } from "http-proxy-middleware";
 import { createServer as createViteServer } from "vite";
 import path from "path";
 import { S3Client, PutObjectCommand, DeleteObjectCommand, ListObjectsV2Command } from "@aws-sdk/client-s3";
@@ -114,6 +115,23 @@ async function startServer() {
     });
   });
 
+  // MyCloud Storage API Proxy (mounted before express.json() to stream multipart and binary payloads cleanly)
+  // We use pathFilter so Express preserves the full path (/api/storage/...) when proxying to streamx.frontmk.online
+  const myCloudProxy = createProxyMiddleware({
+    target: "https://streamx.frontmk.online",
+    changeOrigin: true,
+    pathFilter: ["/api/storage", "/api/s3", "/storage"],
+    on: {
+      proxyReq: (proxyReq, req, res) => {
+        const apiKey = process.env.MYCLOUD_API_KEY || "mk_SUA_CHAVE";
+        proxyReq.setHeader("X-API-Key", apiKey);
+        proxyReq.setHeader("Authorization", `Bearer ${apiKey}`);
+      }
+    }
+  });
+
+  app.use(myCloudProxy);
+
   app.use(express.json());
 
   // QR Auth endpoint (rotates strings to prevent frontend generation)
@@ -165,63 +183,6 @@ async function startServer() {
   // Docs route
   app.get("/docs", (req, res) => {
     res.sendFile(path.join(process.cwd(), "docs.html"));
-  });
-
-  // Storage API endpoints
-  app.post("/api/storage/presign-upload", async (req, res) => {
-    try {
-      const { filename, contentType } = req.body;
-      const command = new PutObjectCommand({
-        Bucket: BUCKET_NAME,
-        Key: filename,
-        ContentType: contentType,
-      });
-      const url = await getSignedUrl(s3Client, command, { expiresIn: 3600 });
-      res.json({ url });
-    } catch (e: any) {
-      res.status(500).json({ error: e.message });
-    }
-  });
-
-  app.delete("/api/storage/delete", async (req, res) => {
-    try {
-      const { filename } = req.body;
-      const command = new DeleteObjectCommand({
-        Bucket: BUCKET_NAME,
-        Key: filename,
-      });
-      await s3Client.send(command);
-      res.json({ success: true });
-    } catch (e: any) {
-      res.status(500).json({ error: e.message });
-    }
-  });
-
-  app.get("/api/storage/file-info", async (req, res) => {
-    try {
-      const command = new ListObjectsV2Command({ Bucket: BUCKET_NAME });
-      const response = await s3Client.send(command);
-      res.json({ contents: response.Contents || [] });
-    } catch (e: any) {
-      res.status(500).json({ error: e.message });
-    }
-  });
-
-  app.put("/api/storage/upload", express.raw({ type: '*/*', limit: '100mb' }), async (req, res) => {
-    try {
-      const filename = req.query.filename as string;
-      const contentType = req.headers['content-type'] as string;
-      const command = new PutObjectCommand({
-        Bucket: BUCKET_NAME,
-        Key: filename,
-        ContentType: contentType,
-        Body: req.body,
-      });
-      await s3Client.send(command);
-      res.json({ success: true, filename });
-    } catch (e: any) {
-      res.status(500).json({ error: e.message });
-    }
   });
 
   app.get("/api/auth/google/url", (req, res) => {

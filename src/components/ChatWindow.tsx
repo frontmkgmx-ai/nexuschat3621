@@ -660,7 +660,7 @@ export default function ChatWindow({
   };
 
   return (
-    <div className={`${isMobileHidden ? "hidden md:flex" : "flex"} flex-1 flex-col h-full bg-[#0a0a0c] relative overflow-hidden border-l border-zinc-800`}>
+    <div className={`${isMobileHidden ? "hidden md:flex" : "flex"} flex-1 flex-col h-full bg-[#0a0a0c] relative overflow-hidden md:border-l border-zinc-800 w-full min-w-0`}>
       <div 
         className="absolute inset-0 opacity-[0.03] pointer-events-none bg-[url('https://www.transparenttextures.com/patterns/stardust.png')] z-0" 
       />
@@ -744,7 +744,7 @@ export default function ChatWindow({
       </div>
 
       {/* Messages View */}
-      <div className={`flex-1 overflow-y-auto p-4 pb-12 sm:p-6 sm:pb-12 z-10 custom-scrollbar overscroll-contain ${conversation.channelType === 'media' ? 'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 content-start' : 'flex flex-col gap-2'}`}>
+      <div className={`flex-1 overflow-y-auto px-2.5 py-3 sm:p-6 pb-6 sm:pb-12 z-10 custom-scrollbar overscroll-contain w-full min-w-0 ${conversation.channelType === 'media' ? 'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 content-start' : 'flex flex-col gap-1.5 sm:gap-2'}`}>
         {conversation.channelType !== 'media' && (
           <div className="text-center mb-6 mt-4">
             <span className="bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 text-[10px] uppercase tracking-widest font-bold py-1.5 px-4 rounded-xl shadow-sm">

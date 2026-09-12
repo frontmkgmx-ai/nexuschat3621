@@ -1,5 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { Play, Pause } from 'lucide-react';
+import { getPublicFileUrl, sanitizeUrl } from '../services/storageService';
 
 export function formatDuration(seconds: number): string {
     const min = Math.floor(seconds / 60);
@@ -111,7 +112,7 @@ export default function VoiceMessageBubble({ mediaUrl, durationSeconds, isMine }
             
             <audio 
                 ref={audioRef} 
-                src={mediaUrl} 
+                src={sanitizeUrl(getPublicFileUrl(mediaUrl))} 
                 onTimeUpdate={handleTimeUpdate}
                 onEnded={handleEnded}
                 onLoadedData={() => setHasLoaded(true)}

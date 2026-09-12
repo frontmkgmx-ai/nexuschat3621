@@ -1,10 +1,11 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Send, Smile, Paperclip, Mic } from "lucide-react";
+import { Send, Smile, Paperclip, Mic, Trash2, Check } from "lucide-react";
 import { db, rtdb } from "../lib/firebase";
 import { collection, doc, setDoc, updateDoc } from "firebase/firestore";
 import { ref, set } from "firebase/database";
-import { uploadChatImage, uploadChatVideo, uploadChatAudio, uploadChatDocument, uploadGroupImage, uploadGroupVideo, uploadGroupAudio, uploadGroupDocument } from "../services/storageService";
+import { uploadChatImage, uploadChatVideo, uploadChatAudio, uploadChatDocument, uploadGroupImage, uploadGroupVideo, uploadGroupAudio, uploadGroupDocument, uploadVoiceToStorage } from "../services/storageService";
 import EmojiPicker, { Theme } from "emoji-picker-react";
+import { toast } from "sonner";
 
 export default function ChatInput({ 
   currentUser, 
@@ -29,9 +30,127 @@ export default function ChatInput({
 }) {
   const [text, setText] = useState("");
   const [isRecording, setIsRecording] = useState(false);
+  const [recordSeconds, setRecordSeconds] = useState(0);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const emojiPickerRef = useRef<HTMLDivElement>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const isCancelledRef = useRef(false);
+
+  const startVoiceRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      audioChunksRef.current = [];
+      isCancelledRef.current = false;
+
+      let options: MediaRecorderOptions = {};
+      if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+        options = { mimeType: 'audio/webm;codecs=opus' };
+      } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
+        options = { mimeType: 'audio/mp4' };
+      }
+
+      const recorder = new MediaRecorder(stream, options);
+      mediaRecorderRef.current = recorder;
+
+      recorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) {
+          audioChunksRef.current.push(e.data);
+        }
+      };
+
+      recorder.onstop = async () => {
+        stream.getTracks().forEach(track => track.stop());
+        if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+
+        if (isCancelledRef.current) {
+          audioChunksRef.current = [];
+          setRecordSeconds(0);
+          setIsRecording(false);
+          return;
+        }
+
+        const audioBlob = new Blob(audioChunksRef.current, { type: recorder.mimeType || 'audio/webm' });
+        audioChunksRef.current = [];
+
+        if (recordSeconds < 1 && audioBlob.size < 1000) {
+          toast.info("Gravação muito curta");
+          setRecordSeconds(0);
+          setIsRecording(false);
+          return;
+        }
+
+        const duration = recordSeconds || 1;
+        setRecordSeconds(0);
+        setIsRecording(false);
+
+        const messageId = crypto.randomUUID();
+        const placeholderMsg = {
+          _id: messageId,
+          conversationId: conversation._id,
+          senderId: currentUser._id,
+          type: "voice",
+          status: "uploading",
+          durationSeconds: duration,
+          _creationTime: Date.now()
+        };
+
+        try {
+          await setDoc(doc(db, "messages", messageId), placeholderMsg);
+          scrollToBottom(true);
+
+          const result = await uploadVoiceToStorage(conversation._id, messageId, audioBlob, (p) => {
+            setUploadProgress(prev => ({ ...prev, [messageId]: p }));
+          });
+
+          await updateDoc(doc(db, "messages", messageId), {
+            mediaUrl: result.url,
+            file: result.file,
+            status: "sent"
+          });
+
+          await updateDoc(doc(db, "conversations", conversation._id), {
+            lastMessage: {
+              ...placeholderMsg,
+              mediaUrl: result.url,
+              status: "sent"
+            },
+            updatedAt: Date.now()
+          });
+        } catch (err) {
+          console.error("Failed to upload voice note to MyCloud", err);
+          toast.error("Erro ao enviar áudio");
+          await updateDoc(doc(db, "messages", messageId), { status: "failed" });
+        }
+      };
+
+      recorder.start(200);
+      setIsRecording(true);
+      setRecordSeconds(0);
+      recordingTimerRef.current = setInterval(() => {
+        setRecordSeconds(prev => prev + 1);
+      }, 1000);
+    } catch (err) {
+      console.error("Microphone access error:", err);
+      toast.error("Não foi possível acessar o microfone. Verifique as permissões.");
+    }
+  };
+
+  const stopAndSendVoice = () => {
+    isCancelledRef.current = false;
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      mediaRecorderRef.current.stop();
+    }
+  };
+
+  const cancelVoice = () => {
+    isCancelledRef.current = true;
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      mediaRecorderRef.current.stop();
+    }
+  };
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -232,8 +351,14 @@ export default function ChatInput({
         else result = await uploadChatDocument({ chatId: conversation._id, userId: currentUser._id, messageId, file, onProgress });
       }
 
+      const fileData = {
+        ...result.file,
+        url: result.file?.url || result.url
+      };
+
       await updateDoc(doc(db, "messages", messageId), {
-        file: result.file,
+        file: fileData,
+        mediaUrl: fileData.url,
         status: "sent"
       });
     } catch (error) {
@@ -292,62 +417,97 @@ export default function ChatInput({
           </button>
         </div>
       )}
-      <div className="bg-[#0a0a0c]/80 backdrop-blur-xl px-4 py-3 sm:py-4 flex items-center h-[72px] sm:h-[84px] relative">
-        <div className="flex items-center gap-2 text-zinc-400 mr-2 sm:mr-3 relative" ref={emojiPickerRef}>
-          <button 
-            type="button" 
-            onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-            className="p-2 rounded-full hover:bg-white/5 hover:text-indigo-400 transition-colors block"
-          >
-            <Smile className="w-[22px] h-[22px]" />
-          </button>
-          
-          {showEmojiPicker && (
-            <div className="absolute bottom-[60px] left-0 z-50 shadow-2xl rounded-lg overflow-hidden border border-zinc-800">
-               <EmojiPicker 
-                 theme={Theme.DARK}
-                 onEmojiClick={(emojiData) => {
-                   setText(prev => prev + emojiData.emoji);
-                 }}
-               />
+      <div className="bg-[#0a0a0c]/90 backdrop-blur-xl px-2.5 sm:px-4 py-2.5 sm:py-3.5 flex items-center min-h-[64px] sm:min-h-[76px] relative w-full">
+        {isRecording ? (
+          <div className="flex-1 flex items-center justify-between px-2 sm:px-4 bg-red-950/20 border border-red-500/30 rounded-full py-2">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <span className="relative flex h-3 w-3 sm:h-3.5 sm:w-3.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-3 w-3 sm:h-3.5 sm:w-3.5 bg-red-500"></span>
+              </span>
+              <span className="text-red-300 font-medium text-xs sm:text-sm hidden sm:inline">Gravando áudio</span>
+              <span className="font-mono text-white text-xs sm:text-sm bg-black/40 px-2 py-0.5 rounded-md border border-white/10">
+                {Math.floor(recordSeconds / 60)}:{(recordSeconds % 60).toString().padStart(2, '0')}
+              </span>
             </div>
-          )}
+            <div className="flex items-center gap-1.5 sm:gap-3">
+              <button 
+                type="button" 
+                onClick={cancelVoice} 
+                className="p-2 sm:p-2.5 rounded-full bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-red-400 transition"
+                title="Cancelar gravação"
+              >
+                <Trash2 className="w-4 h-4 sm:w-5 sm:h-5" />
+              </button>
+              <button 
+                type="button" 
+                onClick={stopAndSendVoice} 
+                className="p-2 sm:p-2.5 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white shadow-[0_0_15px_rgba(99,102,241,0.5)] transition"
+                title="Enviar áudio"
+              >
+                <Check className="w-4 h-4 sm:w-5 sm:h-5" />
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div className="flex items-center gap-0.5 sm:gap-2 text-zinc-400 mr-1.5 sm:mr-3 relative shrink-0" ref={emojiPickerRef}>
+              <button 
+                type="button" 
+                onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                className="p-2 rounded-full hover:bg-white/5 hover:text-indigo-400 transition-colors block text-zinc-400"
+                title="Emojis"
+              >
+                <Smile className="w-5 h-5 sm:w-[22px] sm:h-[22px]" />
+              </button>
+              
+              {showEmojiPicker && (
+                <div className="fixed sm:absolute bottom-[72px] sm:bottom-[60px] left-2 right-2 sm:left-0 sm:right-auto sm:w-[350px] z-50 shadow-2xl rounded-2xl overflow-hidden border border-zinc-800 bg-[#18181b]">
+                   <EmojiPicker 
+                     theme={Theme.DARK}
+                     width="100%"
+                     height={380}
+                     onEmojiClick={(emojiData) => {
+                       setText(prev => prev + emojiData.emoji);
+                     }}
+                   />
+                </div>
+              )}
 
-          <label className={`p-2 rounded-full hover:bg-white/5 transition-colors block ${channelType === 'logs' ? 'text-zinc-600 cursor-not-allowed' : 'cursor-pointer hover:text-indigo-400 text-zinc-400'}`}>
-            <Paperclip className="w-[22px] h-[22px]" />
-            <input type="file" className="hidden" onChange={handleFileUpload} accept={channelType === 'media' ? "image/*,video/*" : channelType === 'links' ? ".pdf,.doc,.docx,.xls,.xlsx,.zip,.rar,.apk" : "*/*"} disabled={channelType === 'logs'} />
-          </label>
-        </div>
-        <form onSubmit={handleSend} className="flex-1 relative">
-          <input
-            type="text"
-            className="w-full bg-[#18181b] border border-white/10 rounded-full px-5 py-3.5 focus:outline-none focus:border-indigo-500/50 focus:bg-[#1f1f22] text-zinc-100 placeholder-zinc-500 transition-all text-[15px] shadow-inner disabled:opacity-50 disabled:cursor-not-allowed"
-            placeholder={channelType === 'logs' ? "Somente logs..." : channelType === 'media' ? "Envie arquivos de mídia..." : channelType === 'links' ? "Envie arquivos e links..." : "Digite uma mensagem..."}
-            value={text}
-            onChange={handleTextChange}
-            onKeyDown={handleKeyDown}
-            disabled={channelType === 'media' || channelType === 'links'}
-          />
-        </form>
-        <div className={`flex items-center transition-colors ml-2 sm:ml-3 z-20`}>
-          {text.trim() ? (
-            <button onClick={() => handleSend()} className="bg-indigo-600 hover:bg-indigo-500 hover:scale-105 active:scale-95 text-white shadow-[0_0_15px_rgba(99,102,241,0.4)] p-3.5 rounded-full cursor-pointer transition-all block">
-              <Send className="w-[18px] h-[18px] ml-0.5" />
-            </button>
-          ) : (
-            <button 
-              type="button" 
-              onMouseDown={() => setIsRecording(true)}
-              onMouseUp={() => setIsRecording(false)}
-              onMouseLeave={() => setIsRecording(false)}
-              onTouchStart={() => setIsRecording(true)}
-              onTouchEnd={() => setIsRecording(false)}
-              className={`p-3.5 rounded-full cursor-pointer transition-all block ${isRecording ? 'bg-red-500 text-white animate-pulse shadow-[0_0_15px_rgba(239,68,68,0.4)]' : 'bg-[#18181b] border border-white/5 text-zinc-400 hover:text-indigo-400'}`}
-            >
-              <Mic className="w-[18px] h-[18px]" />
-            </button>
-          )}
-        </div>
+              <label className={`p-2 rounded-full hover:bg-white/5 transition-colors block ${channelType === 'logs' ? 'text-zinc-600 cursor-not-allowed' : 'cursor-pointer hover:text-indigo-400 text-zinc-400'}`} title="Anexar arquivo ou mídia">
+                <Paperclip className="w-5 h-5 sm:w-[22px] sm:h-[22px]" />
+                <input type="file" className="hidden" onChange={handleFileUpload} accept={channelType === 'media' ? "image/*,video/*" : channelType === 'links' ? ".pdf,.doc,.docx,.xls,.xlsx,.zip,.rar,.apk" : "*/*"} disabled={channelType === 'logs'} />
+              </label>
+            </div>
+            <form onSubmit={handleSend} className="flex-1 min-w-0 relative">
+              <input
+                type="text"
+                className="w-full bg-[#18181b] border border-white/10 rounded-full px-4 sm:px-5 py-2.5 sm:py-3.5 focus:outline-none focus:border-indigo-500/50 focus:bg-[#1f1f22] text-zinc-100 placeholder-zinc-500 transition-all text-[14px] sm:text-[15px] shadow-inner disabled:opacity-50 disabled:cursor-not-allowed"
+                placeholder={channelType === 'logs' ? "Somente logs..." : channelType === 'media' ? "Envie arquivos de mídia..." : channelType === 'links' ? "Envie arquivos e links..." : "Digite uma mensagem..."}
+                value={text}
+                onChange={handleTextChange}
+                onKeyDown={handleKeyDown}
+                disabled={channelType === 'media' || channelType === 'links'}
+              />
+            </form>
+            <div className={`flex items-center transition-colors ml-1.5 sm:ml-3 z-20 shrink-0`}>
+              {text.trim() ? (
+                <button onClick={() => handleSend()} className="bg-indigo-600 hover:bg-indigo-500 hover:scale-105 active:scale-95 text-white shadow-[0_0_15px_rgba(99,102,241,0.4)] p-2.5 sm:p-3.5 rounded-full cursor-pointer transition-all block">
+                  <Send className="w-4 h-4 sm:w-[18px] sm:h-[18px] ml-0.5" />
+                </button>
+              ) : (
+                <button 
+                  type="button" 
+                  onClick={startVoiceRecording}
+                  title="Gravar áudio"
+                  className="p-2.5 sm:p-3.5 rounded-full cursor-pointer transition-all block bg-[#18181b] border border-white/5 text-zinc-400 hover:text-indigo-400 hover:bg-zinc-800"
+                >
+                  <Mic className="w-4 h-4 sm:w-[18px] sm:h-[18px]" />
+                </button>
+              )}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
