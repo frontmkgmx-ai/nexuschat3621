@@ -148,7 +148,7 @@ export default function CreateStatusModal({ onClose, onPublish }: CreateStatusMo
           initial={{ scale: 0.9, opacity: 0, y: 20 }}
           animate={{ scale: 1, opacity: 1, y: 0 }}
           exit={{ scale: 0.95, opacity: 0, y: 10 }}
-          className="bg-zinc-900 w-full h-[100dvh] md:h-[85vh] md:max-w-5xl md:border md:border-zinc-800 md:rounded-3xl shadow-2xl flex flex-col md:flex-row overflow-hidden"
+          className="bg-zinc-900 w-full h-full md:h-[85vh] md:max-w-5xl md:border md:border-zinc-800 md:rounded-3xl shadow-2xl flex flex-col md:flex-row overflow-hidden"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header Mobile / Close Desktop */}

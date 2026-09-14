@@ -129,7 +129,7 @@ export default function Login({ onLogin }: { onLogin: (user: any, isNewUser?: bo
   };
 
   return (
-    <div className="min-h-[100dvh] bg-zinc-950 flex flex-col items-center justify-center relative font-sans p-4 overflow-hidden">
+    <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center relative font-sans p-4 overflow-hidden">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(99,102,241,0.15)_0%,transparent_60%)] z-0 pointer-events-none"></div>
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,rgba(99,102,241,0.05)_0%,transparent_50%)] z-0 pointer-events-none"></div>
       

@@ -327,7 +327,7 @@ export default function App() {
 
   if (!isFirebaseReady) {
     return (
-      <div className="h-[100dvh] w-full bg-zinc-950 flex flex-col items-center justify-center text-zinc-400 gap-3 font-sans">
+      <div className="h-full w-full bg-zinc-950 flex flex-col items-center justify-center text-zinc-400 gap-3 font-sans">
         <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
         <span className="text-sm font-medium">Conectando ao Nexus...</span>
       </div>
@@ -336,7 +336,7 @@ export default function App() {
 
   return (
     <div 
-      className={`h-[100dvh] w-full bg-zinc-950 flex flex-col items-center justify-center overflow-hidden relative ${isNative ? 'p-0' : 'p-0 md:p-4'}`}
+      className={`h-full w-full bg-zinc-950 flex flex-col items-center justify-center overflow-hidden relative ${isNative ? 'p-0' : 'p-0 md:p-4'}`}
     >
       <Toaster position="top-center" theme="dark" richColors />
       <div 

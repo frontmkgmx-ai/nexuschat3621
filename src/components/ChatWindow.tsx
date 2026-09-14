@@ -165,9 +165,9 @@ const MessageBubble = React.memo(({
         <div 
           {...longPressProps}
           onContextMenu={handleRightClick}
-          className={`relative max-w-[85%] sm:max-w-[75%] shadow-sm text-[15px] leading-relaxed w-fit select-none ${getBubbleStyle(isMine, theme)} ${justMedia ? "p-1.5 bg-transparent border-none shadow-none" : "px-3 py-2"}`}
+          className={`relative max-w-[85%] sm:max-w-[75%] shadow-sm text-[15px] leading-relaxed w-fit min-w-0 select-none ${getBubbleStyle(isMine, theme)} ${justMedia ? "p-1.5 bg-transparent border-none shadow-none" : "px-3 py-2"}`}
         >
-          <div className="flex flex-col w-fit max-w-full">
+          <div className="flex flex-col min-w-0 max-w-full">
             {!isMine && isGroup && !justMedia && (
                <span 
                  onClick={() => onOpenProfile && onOpenProfile(msg.senderId)}
@@ -220,8 +220,8 @@ const MessageBubble = React.memo(({
                    {msg.status === "uploading" ? (
                      <div className="relative">
                        {msg.filePreview && (
-                         <div className="mb-2 relative rounded-xl overflow-hidden aspect-square max-w-[200px] w-full bg-zinc-900 border border-white/10 group">
-                           <img src={msg.filePreview} alt="preview" className="w-full h-full object-cover blur-sm opacity-50 transition-opacity" />
+                         <div className="mb-2 relative rounded-xl overflow-hidden aspect-square w-[200px] max-w-full bg-zinc-900 border border-white/10 group">
+                           <img src={msg.filePreview} alt="preview" className="absolute inset-0 w-full h-full object-cover blur-sm opacity-50 transition-opacity" />
                          </div>
                        )}
                        <div className={`flex flex-col gap-2 mt-1 min-w-[120px] p-2 ${msg.filePreview ? 'absolute inset-0 items-center justify-center bg-black/40 rounded-xl' : ''}`}>
@@ -272,10 +272,10 @@ const MessageBubble = React.memo(({
             )}
             
             {/* Timestamp */}
-            <div className={`flex items-center justify-end gap-1 ${
+            <div className={`flex items-center justify-end gap-1 shrink-0 ${
               justMedia 
                 ? "absolute bottom-2 right-2 bg-black/50 backdrop-blur-md px-2 py-0.5 rounded-full z-10" 
-                : "float-right mt-1 ml-3 -mb-1 opacity-70"
+                : "self-end mt-1 opacity-70"
             }`}>
               {msg.edited && <span className="text-[10px] mr-1 italic">Editada</span>}
               <span className={`text-[10px] font-semibold tracking-wide ${
@@ -335,6 +335,7 @@ export default function ChatWindow({
   const [activeCallParticipants, setActiveCallParticipants] = useState<string[]>([]);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!conversation?._id) {
@@ -476,7 +477,13 @@ export default function ChatWindow({
   }, [conversation?._id, conversation?.lastClearedAt?.[currentUser._id], currentUser._id]);
 
   const scrollToBottom = React.useCallback((instant = false) => {
-    messagesEndRef.current?.scrollIntoView({ behavior: instant ? "auto" : "smooth" });
+    if (messagesContainerRef.current) {
+      const container = messagesContainerRef.current;
+      container.scrollTo({
+        top: container.scrollHeight,
+        behavior: instant ? "auto" : "smooth"
+      });
+    }
   }, []);
 
   useEffect(() => {
@@ -744,7 +751,7 @@ export default function ChatWindow({
       </div>
 
       {/* Messages View */}
-      <div className={`flex-1 overflow-y-auto px-2.5 py-3 sm:p-6 pb-6 sm:pb-12 z-10 custom-scrollbar overscroll-contain w-full min-w-0 ${conversation.channelType === 'media' ? 'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 content-start' : 'flex flex-col gap-1.5 sm:gap-2'}`}>
+      <div ref={messagesContainerRef} className={`flex-1 overflow-y-auto min-h-0 px-2.5 py-3 sm:p-6 pb-6 sm:pb-12 z-10 custom-scrollbar overscroll-contain w-full min-w-0 ${conversation.channelType === 'media' ? 'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 content-start' : 'flex flex-col gap-1.5 sm:gap-2'}`}>
         {conversation.channelType !== 'media' && (
           <div className="text-center mb-6 mt-4">
             <span className="bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 text-[10px] uppercase tracking-widest font-bold py-1.5 px-4 rounded-xl shadow-sm">

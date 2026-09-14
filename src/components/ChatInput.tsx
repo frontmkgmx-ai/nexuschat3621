@@ -417,7 +417,7 @@ export default function ChatInput({
           </button>
         </div>
       )}
-      <div className="bg-[#0a0a0c]/90 backdrop-blur-xl px-2.5 sm:px-4 py-2.5 sm:py-3.5 flex items-center min-h-[64px] sm:min-h-[76px] relative w-full">
+      <div className="bg-[#0a0a0c]/90 backdrop-blur-xl px-2.5 sm:px-4 pt-2.5 sm:pt-3.5 pb-3 sm:pb-4 flex items-center min-h-[64px] sm:min-h-[76px] relative w-full" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 12px)' }}>
         {isRecording ? (
           <div className="flex-1 flex items-center justify-between px-2 sm:px-4 bg-red-950/20 border border-red-500/30 rounded-full py-2">
             <div className="flex items-center gap-2 sm:gap-3">
