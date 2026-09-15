@@ -1,16 +1,17 @@
 const fs = require('fs');
-const file = 'server.ts';
-let code = fs.readFileSync(file, 'utf8');
+let code = fs.readFileSync('server.ts', 'utf8');
 
-if (!code.includes('AgentDispatchClient')) {
-    code = code.replace(
-        /import \{ AccessToken \} from "livekit-server-sdk";/g,
-        'import { AccessToken, AgentDispatchClient } from "livekit-server-sdk";'
-    );
-    code = code.replace(
-        /const token = await at\.toJwt\(\);/g,
-        'const token = await at.toJwt();\n      try {\n        const agentClient = new AgentDispatchClient(wsUrl, apiKey, apiSecret);\n        await agentClient.createDispatch(roomName, "meu-agente");\n      } catch (err) {\n        console.error("LiveKit agent dispatch error:", err);\n      }'
-    );
-    fs.writeFileSync(file, code);
-    console.log("server.ts patched");
-}
+code = code.replace(
+`        const url = req.url || '';`,
+`        const url = req.url || '';
+        const bucketId = process.env.STREAMX_BUCKET_ID || '5500ceff-6d51-4f33-aee4-a07e2725ddaf';
+        // Fix bucket server-side by intercepting uploads if needed
+        if (req.method === 'POST' && url.includes('/objects') && !url.includes(bucketId)) {
+           res.writeHead(403, { 'Content-Type': 'application/json' });
+           res.end(JSON.stringify({ error: "Invalid bucket destination" }));
+           proxyReq.destroy();
+           return;
+        }`
+);
+
+fs.writeFileSync('server.ts', code);

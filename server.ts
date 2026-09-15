@@ -185,6 +185,14 @@ async function startServer() {
         }
 
         const url = req.url || '';
+        const bucketId = process.env.STREAMX_BUCKET_ID || '5500ceff-6d51-4f33-aee4-a07e2725ddaf';
+        // Fix bucket server-side by intercepting uploads if needed
+        if (req.method === 'POST' && url.includes('/objects') && !url.includes(bucketId)) {
+           res.writeHead(403, { 'Content-Type': 'application/json' });
+           res.end(JSON.stringify({ error: "Invalid bucket destination" }));
+           proxyReq.destroy();
+           return;
+        }
         let apiKey = process.env.STREAMX_API_KEY || process.env.MYCLOUD_API_KEY;
         if (apiKey === 'mk_f3bc057a386d4d337b3524a2c1f82311db71cc047cea2b42' && process.env.MYCLOUD_API_KEY) {
            apiKey = process.env.MYCLOUD_API_KEY; // Safeguard for old key
