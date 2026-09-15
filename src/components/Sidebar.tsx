@@ -48,8 +48,6 @@ import TermsAndPrivacy from "./TermsAndPrivacy";
 import CommunitiesTab from "./CommunitiesTab";
 import ScanQRCodeView from "./ScanQRCodeView";
 import NexusAI from "./NexusAI";
-
-
 type InternalTab = "CHATS" | "CONTACTS" | "GROUPS" | "SETTINGS" | "PROFILE" | "INPAGE" | "COMMUNITIES" | "NEWS" | "QRCODE" | "NEXUS_AI";
 
 import ConfirmModal from "./ConfirmModal";
@@ -1389,7 +1387,7 @@ export default function Sidebar({
               transition={{ duration: 0.2 }}
               className="flex flex-col h-full absolute inset-0 w-full"
             >
-               <NexusAI currentUser={currentUser} onClose={() => setActiveTab("CHATS")} />
+               <NexusAI currentUser={currentUser} onClose={() => setActiveTab("CHATS")} onNavigate={(route) => setActiveTab(route)} />
             </motion.div>
           )}
 
