@@ -76,7 +76,8 @@ export default function CustomVideoPlayer({
                 const playPromise = videoRef.current.play();
                 if (playPromise !== undefined) {
                     playPromise.catch(error => {
-                        console.error('Play prevented:', error);
+                        if (error?.name === 'AbortError') return;
+                        console.warn('Play prevented:', error?.message || error?.name);
                         setIsPlaying(false);
                     });
                 }

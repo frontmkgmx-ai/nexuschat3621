@@ -60,6 +60,8 @@ export function StatusViewer({ currentGroup, viewingStatusIdx, currentUser, onNe
   }, [currentStatus]);
 
   useEffect(() => {
+    let isCancelled = false;
+
     if (isPaused || isVideoLoading) {
       stopTimer();
       if (videoRef.current) {
@@ -71,13 +73,21 @@ export function StatusViewer({ currentGroup, viewingStatusIdx, currentUser, onNe
       if (videoRef.current) {
         const playPromise = videoRef.current.play();
         if (playPromise !== undefined) {
-          playPromise.catch(e => {
-            console.error("Video play error:", e);
+          playPromise.catch(err => {
+            if (isCancelled || err?.name === 'AbortError') {
+              // Expected browser behavior when paused or navigated away
+              return;
+            }
+            console.warn("Status video play failed:", err?.message || err?.name || "Playback prevented");
             setIsPaused(true); 
           });
         }
       }
     }
+
+    return () => {
+      isCancelled = true;
+    };
   }, [isPaused, isVideoLoading, videoDuration]);
 
   const startTimer = () => {
@@ -231,7 +241,7 @@ export function StatusViewer({ currentGroup, viewingStatusIdx, currentUser, onNe
                }
              }}
              onError={(e) => {
-               console.error("Status video playback error", e);
+               const mediaErr = e.currentTarget.error; console.warn("Status video playback error code:", mediaErr?.code, mediaErr?.message || "");
                setIsVideoLoading(false);
              }}
            /> 

@@ -30,7 +30,14 @@ export default function VoiceMessageBubble({ mediaUrl, durationSeconds, isMine }
                 document.querySelectorAll('audio').forEach((a) => {
                     if (a !== audioRef.current) a.pause();
                 });
-                audioRef.current.play().catch(e => { console.error("Error playing audio", e); setIsPlaying(false); });
+                const playPromise = audioRef.current.play();
+                if (playPromise !== undefined) {
+                    playPromise.catch(e => {
+                        if (e?.name === 'AbortError') return;
+                        console.warn("Audio play prevented:", e?.message || e?.name);
+                        setIsPlaying(false);
+                    });
+                }
             }
         }
     };
