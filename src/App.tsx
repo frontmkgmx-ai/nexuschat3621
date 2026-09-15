@@ -370,7 +370,7 @@ export default function App() {
                  let convoId = null;
                  for (const d of snapshot.docs) {
                     const data = d.data();
-                    if (data.participants.includes(publicProfileUser) && data.participants.length === 2 && !data.isGroup) {
+                    if (data.participants?.includes(publicProfileUser) && data.participants.length === 2 && !data.isGroup) {
                        convoId = d.id;
                        break;
                     }

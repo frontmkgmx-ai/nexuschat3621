@@ -8,6 +8,7 @@ import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { sanitizeUrl } from "../services/storageService";
 import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
+import { StatusViewer } from "./StatusViewer";
 
 export default function Inpage({ currentUser }: { currentUser: any }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -17,28 +18,28 @@ export default function Inpage({ currentUser }: { currentUser: any }) {
   // Viewer state
   const [viewingUserIdx, setViewingUserIdx] = useState<number | null>(null);
   const [viewingStatusIdx, setViewingStatusIdx] = useState<number>(0);
-  const [isPaused, setIsPaused] = useState(false);
-  const [isMuted, setIsMuted] = useState(true);
-  const [statusDuration, setStatusDuration] = useState(5);
-  const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
+    // We add local expiration filter here just in case snapshot doesn't update immediately
+    const checkInterval = setInterval(() => {
+       setStatuses(prev => {
+          const now = Date.now();
+          const valid = prev.filter(s => new Date(s.expiresAt).getTime() > now);
+          if (valid.length !== prev.length) return valid;
+          return prev;
+       });
+    }, 10000); // check every 10s
+
     const unsub = statusService.subscribeActiveStatuses((data) => {
       setStatuses(data);
       setLoading(false);
     });
-    return () => unsub();
+    
+    return () => {
+       unsub();
+       clearInterval(checkInterval);
+    };
   }, []);
-
-  useEffect(() => {
-    if (videoRef.current) {
-      if (isPaused) {
-        videoRef.current.pause();
-      } else {
-        videoRef.current.play().catch(e => console.error("Video play error:", e));
-      }
-    }
-  }, [isPaused, viewingUserIdx, viewingStatusIdx]);
 
   const groupedStatuses = useMemo(() => {
     const groups: { [key: string]: { userId: string, userName: string, userAvatar: string, statuses: any[], lastUpdated: number } } = {};
@@ -69,16 +70,6 @@ export default function Inpage({ currentUser }: { currentUser: any }) {
   const currentGroup = viewingUserIdx !== null ? groupedStatuses[viewingUserIdx] : null;
   const currentStatus = currentGroup ? currentGroup.statuses[viewingStatusIdx] : null;
 
-  useEffect(() => {
-    if (currentStatus) {
-      if (currentStatus.type !== "video") {
-        setStatusDuration(5);
-      } else if (videoRef.current && videoRef.current.readyState >= 1) {
-        setStatusDuration(videoRef.current.duration);
-      }
-    }
-  }, [currentStatus]);
-
   const handlePublish = async (data: any) => {
     try {
       await statusService.createStatus({ 
@@ -99,7 +90,6 @@ export default function Inpage({ currentUser }: { currentUser: any }) {
   const handleViewStatusGroup = (groupIdx: number) => {
     setViewingUserIdx(groupIdx);
     setViewingStatusIdx(0);
-    setIsPaused(false);
   };
 
   const handleNextStatus = () => {
@@ -151,7 +141,6 @@ export default function Inpage({ currentUser }: { currentUser: any }) {
 
   const closeViewer = () => {
     setViewingUserIdx(null);
-    setIsPaused(false);
   };
 
   return (
@@ -251,133 +240,15 @@ export default function Inpage({ currentUser }: { currentUser: any }) {
         )}
         
         {currentStatus && currentGroup && (
-          <motion.div
-             initial={{ opacity: 0, scale: 0.95 }}
-             animate={{ opacity: 1, scale: 1 }}
-             exit={{ opacity: 0, scale: 0.95 }}
-             className="fixed inset-0 z-50 bg-black flex flex-col touch-none select-none"
-             onPointerDown={() => setIsPaused(true)}
-             onPointerUp={() => setIsPaused(false)}
-             onPointerLeave={() => setIsPaused(false)}
-             onContextMenu={(e) => e.preventDefault()}
-          >
-             {/* Progress Bars */}
-             <div className="absolute top-0 inset-x-0 w-full flex gap-1 p-2 pt-4 px-2 z-30 bg-gradient-to-b from-black/80 to-transparent pointer-events-none">
-               {currentGroup.statuses.map((_, index) => (
-                 <div key={index} className="h-1 flex-1 bg-white/30 rounded-full overflow-hidden">
-                   <div 
-                     className="h-full bg-white rounded-full origin-left"
-                     style={{
-                       width: index < viewingStatusIdx ? "100%" : (index === viewingStatusIdx ? "100%" : "0%"),
-                       transition: index === viewingStatusIdx ? `width ${statusDuration}s linear` : 'none',
-                       animationPlayState: isPaused ? 'paused' : 'running'
-                     }}
-                     onTransitionEnd={() => {
-                        if (index === viewingStatusIdx && !isPaused) {
-                          handleNextStatus();
-                        }
-                     }}
-                   />
-                 </div>
-               ))}
-             </div>
-
-             <div className="absolute top-6 inset-x-0 p-4 pt-6 flex items-center justify-between z-20 pointer-events-none">
-                <div className="flex items-center gap-3 drop-shadow-md">
-                   <img 
-                      src={sanitizeUrl(currentGroup.userAvatar) || `https://api.dicebear.com/7.x/pixel-art/svg?seed=${currentGroup.userId}`} 
-                      className="w-10 h-10 rounded-full border-2 border-white/20 object-cover" 
-                   />
-                   <div>
-                     <h4 className="text-white font-bold">{currentGroup.userName}</h4>
-                     <p className="text-white/80 text-xs shadow-black drop-shadow-md">
-                        {(() => {
-                          const date = new Date(currentStatus.createdAt);
-                          return !isNaN(date.getTime()) 
-                            ? formatDistanceToNow(date, { addSuffix: true, locale: ptBR }) 
-                            : "Data inválida";
-                        })()}
-                     </p>
-                   </div>
-                </div>
-                <div className="flex items-center gap-3 pointer-events-auto">
-                   {currentStatus.userId === currentUser._id && (
-                     <button onClick={(e) => { e.stopPropagation(); handleRemoveStatus(currentStatus.id); }} className="p-2 rounded-full bg-red-500/80 hover:bg-red-600 text-white backdrop-blur-sm transition-colors">
-                        <Trash2 className="w-5 h-5" />
-                     </button>
-                   )}
-                   {currentStatus.type === "video" && (
-                     <button onClick={(e) => { e.stopPropagation(); setIsMuted(!isMuted); }} className="p-2 rounded-full bg-black/40 hover:bg-black/60 text-white backdrop-blur-sm transition-colors">
-                        {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
-                     </button>
-                   )}
-                   <button onClick={(e) => { e.stopPropagation(); closeViewer(); }} className="p-2 rounded-full bg-black/40 hover:bg-black/60 text-white backdrop-blur-sm transition-colors">
-                      <X className="w-5 h-5" />
-                   </button>
-                </div>
-             </div>
-
-             <motion.div 
-               drag="x"
-               dragConstraints={{ left: 0, right: 0 }}
-               dragElastic={0.2}
-               onDragEnd={(e, { offset, velocity }) => {
-                 const swipe = offset.x;
-                 if (swipe < -50) {
-                   handleNextStatus();
-                 } else if (swipe > 50) {
-                   handlePrevStatus();
-                 }
-               }}
-               className={`flex-1 flex items-center justify-center p-0 md:p-6 w-full h-full relative ${!currentStatus.url ? (currentStatus.bgColor || 'bg-zinc-800') : 'bg-black'}`}
-             >
-               {currentStatus.type === "image" && currentStatus.url && (
-                 <TransformWrapper
-                   initialScale={1}
-                   minScale={1}
-                   maxScale={4}
-                   centerOnInit
-                   wheel={{ activationKeys: ["Control"] }}
-                   panning={{ disabled: false }}
-                   doubleClick={{ step: 0.5 }}
-                 >
-                   <TransformComponent wrapperClass="w-full h-full" contentClass="w-full h-full flex items-center justify-center">
-                     <img src={currentStatus.url} className="w-full h-full object-contain pointer-events-none" alt="Status" />
-                   </TransformComponent>
-                 </TransformWrapper>
-               )}
-               {currentStatus.type === "video" && currentStatus.url && (
-                 <video 
-                   ref={videoRef}
-                   src={currentStatus.url} 
-                   className="absolute inset-0 w-full h-full object-contain" 
-                   autoPlay 
-                   muted={isMuted} 
-                   playsInline
-                   onLoadedMetadata={(e) => {
-                     if (e.currentTarget.duration) {
-                       setStatusDuration(e.currentTarget.duration);
-                     }
-                   }}
-                 />
-               )}
-               
-               {/* Click areas for Next/Prev inside drag layer for tap detection */}
-               <div className="absolute inset-y-0 left-0 w-1/4 z-10" onClick={(e) => { e.stopPropagation(); handlePrevStatus(); }} />
-               <div className="absolute inset-y-0 right-0 w-1/4 z-10" onClick={(e) => { e.stopPropagation(); handleNextStatus(); }} />
-
-               {/* Always show overlay if there is text and media */}
-               {currentStatus.url && currentStatus.text && (
-                 <div className="absolute inset-x-0 bottom-0 top-2/3 bg-gradient-to-t from-black/90 to-transparent pointer-events-none" />
-               )}
-
-               {currentStatus.text && (
-                  <p className={`relative z-10 pointer-events-none text-white font-bold text-center leading-tight max-w-3xl drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] ${currentStatus.url ? 'text-xl md:text-2xl mt-auto pb-12 px-6' : 'text-3xl md:text-5xl px-6'}`}>
-                    {currentStatus.text}
-                  </p>
-               )}
-             </motion.div>
-          </motion.div>
+          <StatusViewer 
+             currentGroup={currentGroup}
+             viewingStatusIdx={viewingStatusIdx}
+             currentUser={currentUser}
+             onNext={handleNextStatus}
+             onPrev={handlePrevStatus}
+             onClose={closeViewer}
+             onRemove={handleRemoveStatus}
+          />
         )}
       </AnimatePresence>
     </motion.div>

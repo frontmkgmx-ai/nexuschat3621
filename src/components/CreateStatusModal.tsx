@@ -33,6 +33,7 @@ export default function CreateStatusModal({ onClose, onPublish, currentUser }: C
   const [mediaType, setMediaType] = useState<"image" | "video" | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [durationSeconds, setDurationSeconds] = useState(5);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Cropper states
@@ -106,14 +107,14 @@ export default function CreateStatusModal({ onClose, onPublish, currentUser }: C
           setUploadProgress(progress);
         }});
         const publicUrl = response.file.url;
-        onPublish({ type: mediaType, url: publicUrl, text, bgColor });
+        onPublish({ type: mediaType, url: publicUrl, text, bgColor, durationSeconds });
       } catch (err: any) {
         toast.error(err.message || "Erro ao fazer upload da mídia");
       } finally {
         setIsUploading(false);
       }
     } else {
-      onPublish({ type: "text", text, bgColor });
+      onPublish({ type: "text", text, bgColor, durationSeconds: 5 });
     }
   };
 
@@ -182,7 +183,7 @@ export default function CreateStatusModal({ onClose, onPublish, currentUser }: C
                   {mediaType === "image" ? (
                     <img src={mediaPreview} alt="Preview" className="absolute inset-0 w-full h-full object-contain" />
                   ) : (
-                    <video src={mediaPreview} className="absolute inset-0 w-full h-full object-contain" controls autoPlay muted loop playsInline />
+                    <video src={mediaPreview} className="absolute inset-0 w-full h-full object-contain" controls autoPlay muted loop playsInline onLoadedMetadata={(e) => setDurationSeconds(e.currentTarget.duration > 0 && isFinite(e.currentTarget.duration) ? e.currentTarget.duration : 5)} />
                   )}
                   {/* Overlay shadow for text visibility */}
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent pointer-events-none" />

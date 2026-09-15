@@ -26,7 +26,7 @@ const CustomAudioPlayer = ({ url, name, sizeText }: { url: string, name: string,
         audioRef.current.pause();
       } else {
         document.querySelectorAll('audio').forEach(a => a !== audioRef.current && a.pause());
-        audioRef.current.play();
+        const playPromise = audioRef.current.play(); if (playPromise !== undefined) playPromise.catch(e => { console.error("Audio play error", e); setIsPlaying(false); });
       }
     }
   };

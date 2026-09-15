@@ -259,7 +259,7 @@ const MessageBubble = React.memo(({
             {hasReactions && (
               <div className="flex flex-wrap gap-1 mt-1 z-10 relative">
                 {Object.entries(msg.reactions).map(([emoji, users]: [string, any]) => {
-                  if (!users || users.length === 0) return null;
+                  if (!Array.isArray(users) || users.length === 0) return null;
                   const isMyReaction = users.includes(currentUser._id);
                   return (
                     <div key={emoji} className={`text-xs px-1.5 py-0.5 rounded-full border ${isMyReaction ? (isMine ? 'bg-indigo-400/40 border-indigo-300 text-white' : 'bg-indigo-500/30 border-indigo-500/50 text-indigo-100') : 'bg-black/30 border-white/10 text-white/90'}`}>
@@ -588,7 +588,7 @@ export default function ChatWindow({
       const existingReactions = contextMenu.msg.reactions || {};
       let currentReactions = existingReactions[emoji] || [];
 
-      if (currentReactions.includes(currentUser._id)) {
+      if (Array.isArray(currentReactions) && currentReactions.includes(currentUser._id)) {
          currentReactions = currentReactions.filter((id: string) => id !== currentUser._id);
       } else {
          currentReactions = [...currentReactions, currentUser._id];

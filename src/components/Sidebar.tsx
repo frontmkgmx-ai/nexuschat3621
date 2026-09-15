@@ -450,7 +450,7 @@ export default function Sidebar({
   const handleTouchEnd = () => {
     if (longPressTimer) clearTimeout(longPressTimer);
   };
-  const filteredContacts = contacts.filter(c => c.name.toLowerCase().includes(search.toLowerCase()) || c.phoneNumber.includes(search));
+  const filteredContacts = contacts.filter(c => (c.name?.toLowerCase() || "").includes(search.toLowerCase()) || (c.phoneNumber || "").includes(search));
 
   const handleStartConvoByUsername = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -488,7 +488,7 @@ export default function Sidebar({
     
     for (const d of snapshot.docs) {
       const data = d.data();
-      if (data.participants.includes(otherUserId) && data.participants.length === 2 && !data.isGroup) {
+      if (data.participants?.includes(otherUserId) && data.participants.length === 2 && !data.isGroup) {
         convoId = d.id;
         break;
       }
@@ -1746,9 +1746,9 @@ export default function Sidebar({
 
               <div className="flex-1 overflow-y-auto mb-4 border border-zinc-800 rounded-xl p-2 bg-zinc-900/50 space-y-1">
                  <p className="text-xs text-zinc-500 px-2 py-1">Um chat pode ter até 5 pessoas.</p>
-                 {contacts.filter(c => !showAddConvoMembers.participants.includes(c.registeredUserId)).length === 0 ? (
+                 {contacts.filter(c => !(showAddConvoMembers.participants || []).includes(c.registeredUserId)).length === 0 ? (
                     <div className="text-center p-4 text-zinc-500 text-sm">Nenhum novo contato para adicionar.</div>
-                 ) : contacts.filter(c => !showAddConvoMembers.participants.includes(c.registeredUserId)).map(contact => (
+                 ) : contacts.filter(c => !(showAddConvoMembers.participants || []).includes(c.registeredUserId)).map(contact => (
                     <button 
                       key={contact._id} 
                       onClick={async () => {
