@@ -38,7 +38,7 @@ export default function NexusAI({ currentUser, onClose }: { currentUser: any, on
 
   return (
     <div className="flex flex-col h-full absolute inset-0 w-full bg-zinc-950 z-[100] md:z-10">
-      <div className="flex justify-between items-center p-4 border-b border-zinc-800/80 bg-zinc-900/90 backdrop-blur-md sticky top-0 z-10">
+      <div className="flex justify-between items-center p-3 md:p-4 border-b border-zinc-800/80 bg-zinc-900/90 backdrop-blur-md sticky top-0 z-10 shrink-0">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-gradient-to-r from-purple-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-purple-500/20">
             <Bot className="w-6 h-6 text-white" />
@@ -53,7 +53,7 @@ export default function NexusAI({ currentUser, onClose }: { currentUser: any, on
         </button>
       </div>
 
-      <div className="flex-1 relative flex flex-col items-center justify-center p-4">
+      <div className="flex-1 relative flex flex-col items-center justify-center p-2 md:p-4 min-h-0 overflow-hidden">
         {!token || !url ? (
           <div className="flex flex-col items-center text-zinc-400 gap-4">
             <Loader2 className="w-8 h-8 animate-spin text-purple-500" />
@@ -66,7 +66,7 @@ export default function NexusAI({ currentUser, onClose }: { currentUser: any, on
             connect={true}
             audio={true}
             video={true}
-            className="w-full h-full flex flex-col items-center justify-center"
+            className="w-full h-full flex flex-col min-h-0"
             onDisconnected={() => {
               setToken(null);
             }}
@@ -96,9 +96,9 @@ function AgentInterface() {
   };
 
   return (
-    <div className="flex flex-col md:flex-row items-stretch justify-center w-full max-w-5xl gap-10">
-      <div className="flex flex-col items-center justify-center w-full md:w-1/2">
-        <div className="relative w-48 h-48 sm:w-64 sm:h-64 rounded-full overflow-hidden border border-zinc-700/50 shadow-2xl flex items-center justify-center bg-zinc-900/50 group">
+    <div className="flex flex-col md:flex-row items-center justify-start md:justify-center w-full max-w-5xl gap-4 md:gap-10 h-full p-2 overflow-y-auto custom-scrollbar">
+      <div className="flex flex-col items-center justify-center w-full md:w-1/2 flex-shrink-0">
+        <div className="relative w-32 h-32 sm:w-48 sm:h-48 md:w-64 md:h-64 shrink-0 rounded-full overflow-hidden border border-zinc-700/50 shadow-2xl flex items-center justify-center bg-zinc-900/50 group">
           <div className={`absolute inset-0 bg-gradient-to-br from-purple-500/10 to-indigo-500/10 ${state === 'speaking' ? 'animate-pulse' : ''}`} />
           
           {agentVideoTrack ? (
@@ -117,7 +117,7 @@ function AgentInterface() {
                     options={{ minHeight: 12 }}
                   />
                ) : (
-                  <Bot className={`w-20 h-20 text-zinc-700 transition-all ${state === 'thinking' ? 'animate-bounce text-purple-500' : ''}`} />
+                  <Bot className={`w-16 h-16 md:w-20 md:h-20 text-zinc-700 transition-all ${state === 'thinking' ? 'animate-bounce text-purple-500' : ''}`} />
                )}
              </>
           )}
@@ -125,22 +125,22 @@ function AgentInterface() {
           <div className={`absolute inset-0 rounded-full border border-transparent ${state === 'speaking' ? 'border-purple-500/30 scale-[1.02] transition-all duration-300' : ''}`} />
         </div>
 
-        <div className="text-center mt-6">
-          <h3 className="text-xl font-semibold text-white mb-1 tracking-tight">Assistente de Voz</h3>
-          <p className="text-sm text-zinc-400 capitalize font-medium">{getStatusText()}</p>
-          <p className="text-xs text-zinc-500 mt-2 max-w-[250px] mx-auto text-balance">
+        <div className="text-center mt-4 md:mt-6">
+          <h3 className="text-lg md:text-xl font-semibold text-white mb-1 tracking-tight">Assistente de Voz</h3>
+          <p className="text-xs md:text-sm text-zinc-400 capitalize font-medium">{getStatusText()}</p>
+          <p className="hidden md:block text-xs text-zinc-500 mt-2 max-w-[250px] mx-auto text-balance">
              Fale naturalmente pelo microfone ou use o chat ao lado.
           </p>
         </div>
 
-        <div className="w-full flex justify-center mt-6">
+        <div className="w-full flex justify-center mt-4 md:mt-6">
           <VoiceAssistantControlBar />
         </div>
       </div>
       
-      <div className="w-full md:w-1/2 flex flex-col items-center justify-center min-h-[400px]">
-        <div className="w-full h-full max-w-sm border border-zinc-800/80 rounded-xl overflow-hidden bg-zinc-900/80 flex flex-col">
-          <Chat className="w-full h-full text-zinc-300" messageFormatter={(text) => text} />
+      <div className="w-full md:w-1/2 flex flex-col items-center justify-start md:justify-center h-[350px] md:h-[500px] mb-4 md:mb-0 shrink-0">
+        <div className="w-full h-full max-w-sm border border-zinc-800/80 rounded-xl overflow-hidden bg-zinc-900/80 flex flex-col shadow-xl">
+          <Chat className="w-full h-full text-zinc-300 flex-1 overflow-hidden" messageFormatter={(text) => text} />
         </div>
       </div>
     </div>

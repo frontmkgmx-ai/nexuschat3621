@@ -1,871 +1,1044 @@
-Documentação da API - MisticPay | MisticPay 
- Abrir menu Mistic Pay 
- Docs 
- Alternar tema 
- Começando Visão Geral Autenticação 
-
- Referência da API Gerar transação Gerar transação interna Consultar saldo Consultar dados do usuário Solicitar saque Solicitar saque crypto Consultar taxas de cripto Verificar transação Listar transações 
-
- MEDs (Infrações) Listar infrações Responder infração 
-
- Webhooks Webhook de Depósito Webhook de Saque Webhook de MED 
-
- Visão Geral
-
- A MisticPay é uma API completa de pagamentos que permite receber e enviar pagamentos via PIX de forma simples e segura. Nossa plataforma oferece:
-
- Receber Pagamentos (Cash-In)
-
- Gere QR Codes PIX e receba pagamentos de seus clientes instantaneamente
-
- Realizar Saques (Cash-Out)
-
- Transfira fundos para qualquer chave PIX de forma programática
-
- Webhooks em Tempo Real
-
- Receba notificações automáticas de mudanças de status em suas transações
-
- Versão da API
-
- Esta documentação refere-se à API v1. Todas as requisições devem ser feitas para o endpoint base: https://api.misticpay.com 
-
- Autenticação
-
- Conceito
-
- A API da MisticPay utiliza autenticação baseada em Client ID + Client Secret . Existem duas formas de credencial, e a diferença entre elas é o que cada uma alcança.
-
- Chave de acesso (recomendada)
-
- Par pk_… / sk_… , emitido no painel em API → Chaves de Acesso . Viaja no header Authorization no formato Basic e carrega escopos escolhidos por você na criação. É a única credencial que alcança toda a API — inclusive saque.
-
- O sk_ aparece uma única vez , no momento da criação. Ele não fica guardado em formato legível em lugar nenhum, nem do nosso lado: se perder, revogue a chave e crie outra.
-
- Credencial ci/cs (legada)
-
- Par ci_… / cs_… nos headers ci e cs . Continua funcionando, mas apenas em dois endpoints:
-
- Endpoint ci/cs Chave de acesso 
- POST /transactions/create Sim Sim 
- POST /transactions/check Sim Sim 
- Todos os demais endpoints Não Sim 
- 
- Uma credencial ci/cs em qualquer outro endpoint responde 403 . Saque, saldo, consulta de conta, listagem de transações, cripto e MED exigem chave de acesso.
-
- Desligamento em 30 de setembro de 2026 
- A partir dessa data a autenticação por ci / cs deixa de funcionar, inclusive nos dois endpoints acima. Migre para chave de acesso antes disso.
-
- Importante 
- Nunca exponha seu Client Secret no frontend ou em repositórios públicos. Ele deve ser armazenado de forma segura no backend.
-
- URL Base da API
-
- Todas as requisições devem ser enviadas para a seguinte URL base:
-
- URL Base 
- https://api.misticpay.com/api 
-
- Headers Obrigatórios
-
- Headers HTTP Copiar 
- Authorization: Basic BASE64(client_id:client_secret)
-
-Content-Type: application/json 
- BASE64(client_id:client_secret) é o par unido por dois pontos e codificado em base64 — o mesmo esquema do HTTP Basic. Em Node: Buffer.from(`${clientId}:${clientSecret}`).toString("base64") . A maioria dos clientes HTTP monta isso sozinha: no curl , -u client_id:client_secret .
-
- Migrando de ci/cs
-
- No painel, acesse API → Chaves de Acesso e clique em Criar Chave de Acesso . É exigido código 2FA.
- Marque apenas os escopos que a sua integração usa. Escopo não é editável depois: ampliar exige criar outra chave e revogar a antiga.
- Copie o sk_ na hora — ele não é exibido de novo.
- Troque os headers ci / cs pelo header Authorization: Basic … nas suas chamadas.
- Revogue a credencial ci/cs quando não houver mais tráfego nela.
- Os endpoints, os corpos de requisição e os formatos de resposta não mudaram — apenas a forma de autenticar.
-
- Gerar transação
-
- POST
- /api/transactions/create
-
- cashin
-
- Cria uma nova transação PIX para receber pagamento de um cliente. Retorna QR Code e dados da transação.
-
- Parâmetros
-
- Parâmetro Tipo Descrição 
- amount * number Valor em reais para receber. Ex: 4.55 = R$ 4,55 
- payerName * string Nome do pagador da transação 
- payerDocument * string Documento CPF do pagador (sem formatação: 12345678909) 
- transactionId * string ID da sua aplicação para identificação da transação 
- description * string Descrição do pagamento 
- projectWebhook string URL do webhook (opcional) 
- splitUser string Email do usuário na plataforma que receberá a divisão (opcional) 
- splitTax number Porcentagem da taxa de divisão (opcional) 
- 
- Exemplo de Requisição
-
- cURL Copiar 
- curl -X POST 'https://api.misticpay.com/api/transactions/create' \
- --header 'ci: seu_client_id' \
- --header 'cs: seu_client_secret' \
- --header 'Content-Type: application/json' \
- --data '{
- "amount": 5,
- "payerName": "Nome do cliente",
- "payerDocument": "12345678909",
- "transactionId": "id_da_sua_aplicacao_para_identificacao",
- "description": "Pagamento do cliente TAL"
-}' 
-
- Exemplo de Resposta
-
- JSON 
- {
- "message": "Transação criada com sucesso",
- "data": {
- "transactionId": "31484480",
- "payer": {
- "name": "Nome do cliente",
- "document": "12345678909"
- },
- "transactionFee": 23,
- "transactionType": "DEPOSITO",
- "transactionMethod": "PIX",
- "transactionAmount": 455,
- "transactionState": "PENDENTE",
- "qrCodeBase64": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAcgAAAHICAY...",
- "qrcodeUrl": "https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=...",
- "copyPaste": "00020101021226820014br.gov.bcb.pix2560qrcode.pagsm.com.br/pix/..."
- }
-} 
-
- Gerar transação Interna
-
- POST
- /api/transactions/withdraw/internal
-
- internal
-
- Cria uma transação interna vinculada a um usuário pelo e-mail.
-
- Headers Obrigatórios
-
- Headers HTTP Copiar 
- Authorization: Basic BASE64(client_id:client_secret)
-
-Content-Type: application/json 
- Exemplo de Requisição
-
- cURL Copiar 
- curl -X POST 'https://api.misticpay.com/api/transactions/withdraw/internal' \
- --header 'Authorization: Basic BASE64(client_id:client_secret)' \
- --header 'Content-Type: application/json' \
- --data '{
- "email": "emailrecebedor@gmail.com",
- "amount": 2,
- "description": "teste"
-}' 
- Exemplo de Resposta
-
- JSON Copiar 
- {
- "message": "Transferência realizada com sucesso",
- "data": {
- "transactionId": "id-da-transacao",
- "amount": 1,
- "recipientEmail": "emailrecebedor@gmail.com",
- "recipientName": "Nome do recebedor"
- }
-} 
-
- Consultar saldo
-
- GET
- /api/users/balance
-
- cashout ou all
-
- Retorna o saldo disponível na conta.
-
- Exemplo de Requisição
-
- cURL Copiar 
- curl -X GET 'https://api.misticpay.com/api/users/balance' \
- --header 'Authorization: Basic BASE64(client_id:client_secret)' 
- Exemplo de Resposta
-
- JSON 
- {
- "message": "Saldo do usuário obtido com sucesso",
- "data": {
- "balance": 0.00
- }
-} 
-
- Consultar dados do usuário
-
- GET
- /api/users/info
-
- consulta
-
- Retorna os dados do usuário autenticado pelas credenciais CI/CS. Inclui informações pessoais, status da conta e saldo disponível.
-
- Campos Retornados
-
- Campo Tipo Descrição 
- name string Nome do usuário 
- email string Email do usuário 
- document string CPF/CNPJ do usuário 
- phone string Telefone do usuário 
- accountVerified boolean Se a conta do usuário está verificada 
- documentVerified boolean Se o documento do usuário está verificado 
- withdrawBlocked boolean Se o saque está bloqueado para o usuário 
- availableBalance number Saldo disponível (saldo total - saldo bloqueado) 
- blockedBalance number Saldo bloqueado por MEDs ou outras restrições 
- 
- Exemplo de Requisição
-
- cURL Copiar 
- curl -X GET 'https://api.misticpay.com/api/users/info' \
- --header 'Authorization: Basic BASE64(client_id:client_secret)' 
- Exemplo de Resposta
-
- JSON 
- {
- "message": "Dados do usuário encontrados com sucesso",
- "data": {
- "name": "João Silva",
- "email": "joao@email.com",
- "document": "12345678909",
- "phone": "11999999999",
- "accountVerified": true,
- "documentVerified": true,
- "withdrawBlocked": false,
- "availableBalance": 850.00,
- "blockedBalance": 150.00
- }
-} 
-
- Solicitar saque
-
- POST
- /api/transactions/withdraw
-
- cashout
-
- Solicita um saque via PIX para uma chave PIX. O valor será debitado do saldo disponível. Suporta chaves PIX tradicionais (CPF, CNPJ, Email, Telefone, Chave Aleatória).
-
- Parâmetros
-
- Parâmetro Tipo Descrição 
- amount * number Valor em reais para receber. Ex: 100 = R$ 100,00 
- pixKey * string Chave PIX do destinatário (sem formatação: 12345678909). 
- pixKeyType * string Tipo da chave PIX: "CPF", "CNPJ", "EMAIL", "TELEFONE", "CHAVE_ALEATORIA" 
- description * string Descrição do pagamento 
- projectWebhook string URL do webhook para notificações (opcional) 
- 
- Exemplo de Requisição
-
- cURL Copiar 
- curl -X POST 'https://api.misticpay.com/api/transactions/withdraw' \
- --header 'Authorization: Basic BASE64(client_id:client_secret)' \
- --header 'Content-Type: application/json' \
- --data '{
- "amount": 1,
- "pixKey": "12345678909",
- "pixKeyType": "CPF",
- "description": "saque com id",
- "projectWebhook": "https://webhooktrack.com/api/webhook/bZ_7mnNS"
-}' 
- Exemplo de Resposta
-
- JSON Copiar 
- {
- "message": "Saque adicionado à fila de processamento",
- "data": {
- "jobId": "withdraw-4-1764365277110-jxqfvna",
- "transactionId": 54345,
- "status": "QUEUED",
- "message": "Seu saque será processado em breve"
- }
-} 
-
- POST
- /api/transactions/withdraw/qrcode
-
- cashout
-
- Paga um QR Code Pix a partir do código "copia e cola". O valor será debitado do saldo disponível.
-
- Somente QR Code estático. QR Codes dinâmicos (de cobrança) são recusados com HTTP 422, porque o valor deles é definido pelo recebedor no momento da liquidação e pode mudar depois da validação. Os dados do QR são apurados pelo servidor e revalidados imediatamente antes do pagamento.
-
- Parâmetros
-
- Parâmetro Tipo Descrição 
- qrCode * string Código Pix copia e cola (BR Code). 
- amount number Obrigatório apenas quando o QR Code não define valor. Se o QR já traz valor, este campo é ignorado — e se divergir do valor do QR, a requisição é recusada com HTTP 409. 
- description string Descrição do pagamento (opcional) 
- projectWebhook string URL do webhook para notificações (opcional) 
- 
- Exemplo de Requisição
-
- cURL Copiar 
- curl -X POST 'https://api.misticpay.com/api/transactions/withdraw/qrcode' \
- --header 'Authorization: Basic BASE64(client_id:client_secret)' \
- --header 'Content-Type: application/json' \
- --data '{
- "qrCode": "00020126580014BR.GOV.BCB.PIX0136...",
- "description": "pagamento de fornecedor",
- "projectWebhook": "https://webhooktrack.com/api/webhook/bZ_7mnNS"
-}' 
- Exemplo de Resposta
-
- JSON Copiar 
- {
- "message": "Saque adicionado à fila de processamento",
- "data": {
- "jobId": "withdraw-4-1764365277110-jxqfvna",
- "transactionId": 54346,
- "status": "QUEUED",
- "message": "Seu saque será processado em breve"
- }
-} 
-
- Solicitar saque crypto
-
- POST
- /api/crypto/withdraw-api
-
- cashout
-
- Solicita um saque em criptomoeda (USDT BEP20) para uma wallet. O valor será debitado do saldo disponível e convertido para USDT.
-
- 💡 Informações importantes: Valor mínimo: R$ 20,00
- Valor máximo: R$ 3.000,00
- Taxa da plataforma: 5% sobre o valor
- Taxa de rede: variável (calculada automaticamente)
- Wallet deve ser válida no formato BEP20 (0x...)
-
- Parâmetros
-
- Parâmetro Tipo Descrição 
- amount * number Valor em reais para sacar. Ex: 100 = R$ 100,00 (mínimo R$ 20,00, máximo R$ 3.000,00) 
- wallet * string Endereço da wallet BEP20 para receber USDT (formato: 0x seguido de 40 caracteres hexadecimais) 
- projectWebhook string URL do webhook para notificações (opcional) 
- 
- Exemplo de Requisição
-
- cURL Copiar 
- curl -X POST 'https://api.misticpay.com/api/crypto/withdraw-api' \
- --header 'Authorization: Basic BASE64(client_id:client_secret)' \
- --header 'Content-Type: application/json' \
- --data '{
- "amount": 100,
- "wallet": "0x1234567890123456789012345678901234567890",
- "projectWebhook": "https://webhook.example.com/api/webhook"
-}' 
- Exemplo de Resposta
-
- JSON Copiar 
- {
- "message": "Saque crypto adicionado à fila de processamento",
- "data": {
- "jobId": "crypto-withdraw-4-1764365277110-jxqfvna",
- "transactionId": 54345,
- "status": "QUEUED",
- "message": "Seu saque crypto será processado em breve"
- }
-} 
-
- Consultar taxas de cripto
-
- GET
- /api/crypto/fees
-
- info
-
- Consulta informações sobre as taxas de cripto, incluindo taxa da plataforma, taxa de rede e cotação atual.
-
- 💡 Informações importantes: Taxa da plataforma: 5% sobre o valor informado
- Taxa de rede: R$ 3,00 (fixa, apenas para informação - já descontada automaticamente pela rede)
- Inclui cotação atual BRL/USD
-
- Exemplo de Requisição
-
- cURL Copiar 
- curl -X GET 'https://api.misticpay.com/api/crypto/fees' \
- --header 'Authorization: Basic BASE64(client_id:client_secret)' \
- --header 'Content-Type: application/json' 
- Exemplo de Resposta
-
- JSON Copiar 
- {
- "message": "Taxas obtidas com sucesso",
- "data": {
- "quote": {
- "brlPerUSD": 5.25,
- "networkFee": 3.0,
- "fixedFeeUSDT": 0.5,
- "timestamp": "2024-01-01T00:00:00.000Z"
- },
- "fees": {
- "platformFeePercentage": 3,
- "networkFee": 3.0
- }
- }
-} 
-
- Verificar transação
-
- POST
- /api/transactions/check
-
- Consulte o status e detalhes de uma transação específica.
-
- ⚠️ Rate Limit: Esta rota possui rate limit de 60 requisições por minuto por IP . Requisições que excederem este limite retornarão erro 429.
-
- Parâmetros
-
- Parâmetro Tipo Descrição 
- transactionId * string | number ID da transação a ser verificada 
- 
- Exemplo de Requisição
-
- cURL Copiar 
- curl -X POST 'https://api.misticpay.com/api/transactions/check' \
- --header 'ci: seu_client_id' \
- --header 'cs: seu_client_secret' \
- --header 'Content-Type: application/json' \
- --data '{
- "transactionId": "54345"
-}' 
- Exemplo de Resposta
-
- JSON Copiar 
- {
- "message": "Transação encontrada com sucesso!",
- "transaction": {
- "transactionId": "301124932.60430735",
- "value": 1.12,
- "fee": 0.31,
- "transactionState": "COMPLETO",
- "transactionType": "DEPOSITO",
- "transactionMethod": "PIX",
- "createdAt": "2025-12-02T01:20:18.475Z",
- "updatedAt": "2025-12-02T01:20:53.002Z"
- }
-} 
- Status Possíveis
-
- Status Descrição 
- PENDENTE Transação pendente, aguardando pagamento 
- COMPLETO Transação aprovada e concluída com sucesso 
- FALHA Transação falhou ou foi rejeitada 
-
- Listar transações
-
- GET
- /api/users/transactions/list/:page
-
- consulta
-
- Lista as transações do usuário com paginação e filtro por status. Retorna no máximo 10 transações por página.
-
- Autenticação 
- Esta rota utiliza autenticação via CI/CS (Client ID / Client Secret) nos headers da requisição.
-
- Parâmetros (URL)
-
- Parâmetro Tipo Descrição 
- page * number Número da página (ex: 1, 2, 3...) 
- 
- Parâmetros (Query String)
-
- Parâmetro Tipo Descrição 
- status string Filtrar por status: PENDENTE, COMPLETO, FALHA ou CANCELADO (opcional) 
- 
- Exemplo de Requisição
-
- cURL Copiar 
- curl -X GET 'https://api.misticpay.com/api/users/transactions/list/1?status=COMPLETO' \\
- --header 'Authorization: Basic BASE64(client_id:client_secret)' \\
- --header 'Content-Type: application/json' 
- Exemplo de Resposta
-
- JSON Copiar 
- {
- "message": "Lista de transações obtida com sucesso",
- "data": [
- {
- "id": 934866,
- "value": 2,
- "fee": 0.15,
- "clientName": "Gustavo",
- "clientDocument": "15810217478",
- "description": "Checkout 1042 - teste",
- "requestIp": "::1",
- "updatedAt": "2026-03-04T23:47:23.257Z",
- "transactionState": "COMPLETO",
- "transactionType": "DEPOSITO",
- "transactionMethod": "PIX",
- "source": "CHECKOUT",
- "endToEndId": null,
- "clientTransactionId": "checkout-1042-1772668040504-1awhmwv",
- "createdAt": "2026-03-04T23:47:23.257Z"
- }
- ],
- "pagination": {
- "page": 1,
- "perPage": 10,
- "total": 10,
- "totalPages": 5
- }
-} 
- Campos Retornados
-
- Campo Tipo Descrição 
- id number ID da transação 
- value number Valor da transação em reais 
- fee number Taxa cobrada na transação 
- clientName string Nome do cliente da transação 
- clientDocument string Documento do cliente (pode estar mascarado) 
- description string Descrição da transação 
- requestIp string IP de origem da requisição 
- transactionState string Estado da transação: PENDENTE, COMPLETO, FALHA ou CANCELADO 
- transactionType string Tipo da transação (ex: DEPOSITO, RETIRADA) 
- transactionMethod string Método da transação (ex: PIX) 
- source string Origem da transação (ex: API, CHECKOUT) 
- endToEndId string | null Identificador end-to-end do PIX (quando disponível) 
- clientTransactionId string ID da transação do cliente 
- createdAt string Data de criação (ISO 8601) 
- updatedAt string Data da última atualização (ISO 8601) 
- pagination.page number Página atual 
- pagination.perPage number Itens por página (fixo: 10) 
- pagination.total number Total de transações na página atual 
- pagination.totalPages number Total de páginas disponíveis 
-
- Filtros de Status
-
- Status Descrição 
- PENDENTE
- Transação pendente, aguardando pagamento 
- COMPLETO
- Transação aprovada e concluída com sucesso 
- FALHA
- Transação falhou ou foi rejeitada 
- CANCELADO
- Transação cancelada 
-
- Erros Possíveis
-
- Código Descrição 
- 400 Credenciais de integração não enviadas (ci e cs nos headers) 
- 401 Credenciais inválidas 
-
- Listar infrações
-
- GET
- /api/meds/infractions/list
-
- Lista todas as infrações (MEDs) registradas para sua conta, com paginação. Inclui detalhes da transação associada e respostas de defesa enviadas.
-
- Autenticação 
- Esta rota utiliza autenticação via CI/CS (Client ID / Client Secret) nos headers da requisição.
-
- Parâmetros (Query String)
-
- Parâmetro Tipo Descrição 
- page number Página atual (padrão: 1) 
- perPage number Itens por página (padrão: 20) 
- 
- Exemplo de Requisição
-
- cURL Copiar 
- curl -X GET 'https://api.misticpay.com/api/meds/infractions/list?page=1&perPage=10' \
- --header 'Authorization: Basic BASE64(client_id:client_secret)' 
- Exemplo de Resposta
-
- JSON Copiar 
- {
- "data": {
- "infractions": [
- {
- "id": 42,
- "externalId": "INF-2026-001",
- "type": "FRAUD",
- "status": "WAITING_PSP",
- "source": "ONLYUP",
- "endToEndId": "E00000000202602161750abcdef123456",
- "reportedBy": "DEBITED_PARTICIPANT",
- "reportDetails": "Transação não reconhecida",
- "analysisResult": null,
- "amount": 150.00,
- "currency": "BRL",
- "createdAt": "2026-02-16T17:50:00.000Z",
- "transaction": {
- "id": 31484,
- "value": 150.00,
- "externalId": "TXN-12345",
- "clientTransactionId": "301124932.60430735",
- "endToEndId": "E00000000202602161750abcdef123456",
- "transactionState": "COMPLETO",
- "transactionType": "DEPOSITO",
- "createdAt": "2026-02-16T17:45:00.000Z"
- },
- "defenseResponses": []
- }
- ],
- "pagination": {
- "page": 1,
- "perPage": 10,
- "total": 1,
- "totalPages": 1
- }
- }
-} 
- Status Possíveis da Infração
-
- Status Descrição 
- WAITING_PSP
- Aguardando análise — você pode enviar defesa 
- ACCEPTED
- Infração aceita — devolução será realizada 
- REJECTED
- Infração rejeitada — saldo desbloqueado 
- CANCELLED
- Infração cancelada 
-
- Responder infração
-
- POST
- /api/meds/infractions/:infractionId/defense
-
- Envia uma resposta de defesa para uma infração específica. Só é possível responder infrações com status WAITING_PSP e cada infração aceita apenas uma resposta.
-
- Importante 
- A defesa só pode ser enviada uma única vez por infração. Certifique-se de que a justificativa esteja completa antes de enviar.
-
- Parâmetros (URL)
-
- Parâmetro Tipo Descrição 
- infractionId * number ID da infração (obtido na listagem) 
- 
- Parâmetros (Body JSON)
-
- Parâmetro Tipo Descrição 
- analise * string Posicionamento: "rejeitado" ou "aceito" 
- justificativa * string Texto da defesa (mínimo 10 caracteres) 
- proofs * string[] Array de URLs das provas (mínimo 1, máximo 10) 
- 
- Exemplo de Requisição
-
- cURL Copiar 
- curl -X POST 'https://api.misticpay.com/api/meds/infractions/42/defense' \
- --header 'Authorization: Basic BASE64(client_id:client_secret)' \
- --header 'Content-Type: application/json' \
- --data '{
- "analise": "rejeitado",
- "justificativa": "Transação legítima realizada pelo titular da conta.",
- "proofs": [
- "https://exemplo.com/comprovante1.png",
- "https://exemplo.com/comprovante2.pdf"
- ]
-}' 
- Exemplo de Resposta (201)
-
- JSON Copiar 
- {
- "message": "Defesa enviada com sucesso",
- "data": {
- "id": 7,
- "infractionId": 42,
- "analise": "rejeitado",
- "justificativa": "Transação legítima realizada pelo titular da conta.",
- "proofs": [
- {
- "url": "https://exemplo.com/comprovante1.png",
- "fileName": "prova-1",
- "mimeType": "url"
- },
- {
- "url": "https://exemplo.com/comprovante2.pdf",
- "fileName": "prova-2",
- "mimeType": "url"
- }
- ],
- "createdAt": "2026-02-25T19:30:00.000Z"
- }
-} 
- Erros Possíveis
-
- Código Descrição 
- 400 Campos obrigatórios ausentes, valor inválido para analise, ou infração já resolvida 
- 403 A infração não pertence à sua conta 
- 404 Infração não encontrada 
- 409 Já existe uma resposta de defesa para esta infração 
-
- Webhook de Depósito
-
- Conceito de Webhooks
-
- Webhooks são notificações automáticas enviadas pela MisticPay quando há mudanças no status de transações. São requisições HTTP POST enviadas para a URL configurada.
-
- Estrutura do Webhook de Depósito
-
- JSON 
- {
- "transactionId": 31484480,
- "transactionType": "DEPOSITO",
- "transactionMethod": "PIX",
- "clientName": "Nome do cliente",
- "clientDocument": "12345678909",
- "status": "COMPLETO",
- "value": 455,
- "fee": 23,
- "e2e": "1234567890987654321098765432109876543210987654321098765432109876",
- "ispb": "18236120",
- "bankName": "NU PAGAMENTOS - IP"
-} 
- ispb e bankName identificam o banco da contraparte — o pagador no depósito, o beneficiário no saque. Os dois vêm como null quando o banco não informa a instituição de origem ou destino.
-
- Webhook de Saque
-
- Estrutura do Webhook de Saque
-
- JSON 
- {
- "transactionId": 31484480,
- "transactionType": "RETIRADA",
- "transactionMethod": "PIX",
- "clientName": "Nome do cliente",
- "clientDocument": "12345678909",
- "status": "COMPLETO",
- "value": 455,
- "fee": 23,
- "e2e": "1234567890987654321098765432109876543210987654321098765432109876",
- "ispb": "18236120",
- "bankName": "NU PAGAMENTOS - IP"
-} 
- ispb e bankName identificam o banco da contraparte — o pagador no depósito, o beneficiário no saque. Os dois vêm como null quando o banco não informa a instituição de origem ou destino.
-
- Webhook de MED
-
- Quando uma infração (MED - Mecanismo Especial de Devolução) é registrada ou atualizada para uma transação, o sistema envia automaticamente uma notificação via webhook para a URL configurada na projectWebhook da credencial ou da transação.
-
- Importante 
- O webhook de MED é disparado tanto na criação da infração quanto em atualizações (ex: quando o resultado da análise é informado). Utilize o campo infraction.status para identificar o estado atual.
-
- Estrutura do Webhook de MED (Infração Criada)
-
- JSON Copiar 
- {
- "event": "INFRACTION",
- "infraction": {
- "id": 42,
- "externalId": "INF-2026-001",
- "type": "FRAUD",
- "status": "WAITING_PSP",
- "amount": 150.00,
- "currency": "BRL",
- "analysisResult": null,
- "analysisDetails": null,
- "reportedBy": "DEBITED_PARTICIPANT",
- "reportDetails": "Transação não reconhecida pelo titular da conta",
- "createdAt": "2026-02-16T17:50:00.000Z"
- },
- "transaction": {
- "transactionId": "TXN-12345",
- "endToEndId": "E00000000202602161750abcdef123456",
- "value": 150.00,
- "status": "COMPLETO",
- "ispb": "18236120",
- "bankName": "NU PAGAMENTOS - IP"
- }
-} 
-
- Estrutura do Webhook de MED (Análise Concluída)
-
- JSON Copiar 
- {
- "event": "INFRACTION",
- "infraction": {
- "id": 42,
- "externalId": "INF-2026-001",
- "type": "FRAUD",
- "status": "ACCEPTED",
- "amount": 150.00,
- "currency": "BRL",
- "analysisResult": "AGREED",
- "analysisDetails": "Fraude confirmada após análise",
- "reportedBy": "DEBITED_PARTICIPANT",
- "reportDetails": "Transação não reconhecida pelo titular da conta",
- "createdAt": "2026-02-16T17:50:00.000Z"
- },
- "transaction": {
- "transactionId": "TXN-12345",
- "endToEndId": "E00000000202602161750abcdef123456",
- "value": 150.00,
- "status": "COMPLETO",
- "ispb": "18236120",
- "bankName": "NU PAGAMENTOS - IP"
- }
-} 
-
- Campos do objeto infraction
-
- Campo Tipo Descrição 
- id number ID interno da infração 
- externalId string ID externo da infração (gateway) 
- type string Tipo da infração (ex: FRAUD, REFUND_REQUEST) 
- status string WAITING_PSP, ACCEPTED, REJECTED ou CANCELLED 
- amount number Valor da infração em reais 
- currency string Moeda (padrão: BRL) 
- analysisResult string | null Resultado: AGREED (aceita) ou DISAGREED (rejeitada) 
- analysisDetails string | null Detalhes adicionais da análise 
- reportedBy string | null Quem reportou: DEBITED_PARTICIPANT, CREDITED_PARTICIPANT ou ACCOUNT_HOLDER 
- reportDetails string | null Detalhes do reporte 
- createdAt string Data de criação (ISO 8601) 
-
- Campos do objeto transaction
-
- Campo Tipo Descrição 
- transactionId string ID da transação (clientTransactionId ou externalId) 
- endToEndId string | null Identificador end-to-end do PIX 
- value number Valor original da transação 
- status string Estado atual da transação 
-
- Status da Infração
-
- Status Descrição 
- WAITING_PSP
- Aguardando análise da instituição 
- ACCEPTED
- Infração aceita — devolução será realizada 
- REJECTED
- Infração rejeitada 
- CANCELLED
- Infração cancelada 
-
- Documentação
-
- Início 
- Introdução 
- Autenticação 
- 
- Suporte
-
- Contato 
- Termos de Uso 
- Política de Privacidade 
- 
- Contato
-
- contato@misticpay.com 
- +55 (62) 3190-1253 
-
- © 2026 Mistic Pay. Todos os direitos reservados.
-
- Voltar para o site principal
+Documentação da API - MisticPay | MisticPay
+(self.__next_s=self.__next_s||[]).push([0,{"children":"\n              (function() {\n                try {\n                  var theme = localStorage.getItem('theme');\n                  if (!theme) {\n                    localStorage.setItem('theme', 'dark');\n                  }\n                } catch (e) {}\n              })();\n            ","id":"theme-init"}])
+((a,b,c,d,e,f,g,h)=>{let i=document.documentElement,j=["light","dark"];function k(b){var c;(Array.isArray(a)?a:[a]).forEach(a=>{let c="class"===a,d=c&&f?e.map(a=>f[a]||a):e;c?(i.classList.remove(...d),i.classList.add(f&&f[b]?f[b]:b)):i.setAttribute(a,b)}),c=b,h&&j.includes(c)&&(i.style.colorScheme=c)}if(d)k(d);else try{let a=localStorage.getItem(b)||c,d=g&&"system"===a?window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light":a;k(d)}catch(a){}})("class","theme","dark",null,["light","dark"],null,true,true)
+(self.__next_s=self.__next_s||[]).push([0,{"children":"\n              (function() {\n                try {\n                  var theme = localStorage.getItem('theme');\n                  if (!theme) {\n                    localStorage.setItem('theme', 'dark');\n                  }\n                } catch (e) {}\n              })();\n            ","id":"theme-init"}])
+Abrir menu
+Mistic Pay
+Docs
+Alternar tema
+Começando
+Visão Geral
+Autenticação
+Referência da API
+Gerar transação
+Gerar transação interna
+Consultar saldo
+Consultar dados do usuário
+Solicitar saque
+Solicitar saque crypto
+Consultar taxas de cripto
+Verificar transação
+Listar transações
+MEDs (Infrações)
+Listar infrações
+Responder infração
+Webhooks
+Webhook de Depósito
+Webhook de Saque
+Webhook de MED
+Visão Geral
+A
+MisticPay
+é uma API completa de pagamentos que permite receber e enviar pagamentos via PIX de forma simples e segura. Nossa plataforma oferece:
+Receber Pagamentos (Cash-In)
+Gere QR Codes PIX e receba pagamentos de seus clientes instantaneamente
+Realizar Saques (Cash-Out)
+Transfira fundos para qualquer chave PIX de forma programática
+Webhooks em Tempo Real
+Receba notificações automáticas de mudanças de status em suas transações
+Versão da API
+Esta documentação refere-se à API v1. Todas as requisições devem ser feitas para o endpoint base:
+https://api.misticpay.com
+Autenticação
+Conceito
+A API da MisticPay utiliza autenticação baseada em
+Client ID + Client Secret
+. Existem duas formas de credencial, e a diferença entre elas é o que cada uma alcança.
+Chave de acesso (recomendada)
+Par
+pk_…
+/
+sk_…
+, emitido no painel em
+API → Chaves de Acesso
+. Viaja no header
+Authorization
+no formato
+Basic
+e carrega escopos escolhidos por você na criação. É a única credencial que alcança toda a API — inclusive saque.
+O
+sk_
+aparece
+uma única vez
+, no momento da criação. Ele não fica guardado em formato legível em lugar nenhum, nem do nosso lado: se perder, revogue a chave e crie outra.
+Credencial ci/cs (legada)
+Par
+ci_…
+/
+cs_…
+nos headers
+ci
+e
+cs
+. Continua funcionando, mas apenas em dois endpoints:
+Endpoint
+ci/cs
+Chave de acesso
+POST /transactions/create
+Sim
+Sim
+POST /transactions/check
+Sim
+Sim
+Todos os demais endpoints
+Não
+Sim
+Uma credencial ci/cs em qualquer outro endpoint responde
+403
+. Saque, saldo, consulta de conta, listagem de transações, cripto e MED exigem chave de acesso.
+Desligamento em 30 de setembro de 2026
+A partir dessa data a autenticação por
+ci
+/
+cs
+deixa de funcionar, inclusive nos dois endpoints acima. Migre para chave de acesso antes disso.
+Importante
+Nunca exponha seu Client Secret no frontend ou em repositórios públicos. Ele deve ser armazenado de forma segura no backend.
+URL Base da API
+Todas as requisições devem ser enviadas para a seguinte URL base:
+URL Base
+https://api.misticpay.com/api
+Headers Obrigatórios
+Headers HTTP
+Copiar
+Authorization: Basic BASE64(client_id:client_secret)
+
+Content-Type: application/json
+BASE64(client_id:client_secret)
+é o par unido por dois pontos e codificado em base64 — o mesmo esquema do HTTP Basic. Em Node:
+Buffer.from(`${clientId}:${clientSecret}`).toString("base64")
+. A maioria dos clientes HTTP monta isso sozinha: no
+curl
+,
+-u client_id:client_secret
+.
+Migrando de ci/cs
+No painel, acesse
+API → Chaves de Acesso
+e clique em
+Criar Chave de Acesso
+. É exigido código 2FA.
+Marque apenas os escopos que a sua integração usa. Escopo não é editável depois: ampliar exige criar outra chave e revogar a antiga.
+Copie o
+sk_
+na hora — ele não é exibido de novo.
+Troque os headers
+ci
+/
+cs
+pelo header
+Authorization: Basic …
+nas suas chamadas.
+Revogue a credencial ci/cs quando não houver mais tráfego nela.
+Os endpoints, os corpos de requisição e os formatos de resposta não mudaram — apenas a forma de autenticar.
+Gerar transação
+POST
+/api/transactions/create
+cashin
+Cria uma nova transação PIX para receber pagamento de um cliente. Retorna QR Code e dados da transação.
+Parâmetros
+Parâmetro
+Tipo
+Descrição
+amount
+*
+number
+Valor em reais para receber. Ex: 4.55 = R$ 4,55
+payerName
+*
+string
+Nome do pagador da transação
+payerDocument
+*
+string
+Documento CPF do pagador (sem formatação: 12345678909)
+transactionId
+*
+string
+ID da sua aplicação para identificação da transação
+description
+*
+string
+Descrição do pagamento
+projectWebhook
+string
+URL do webhook (opcional)
+splitUser
+string
+Email do usuário na plataforma que receberá a divisão (opcional)
+splitTax
+number
+Porcentagem da taxa de divisão (opcional)
+Exemplo de Requisição
+cURL
+Copiar
+curl -X POST 'https://api.misticpay.com/api/transactions/create' \
+  --header 'ci: seu_client_id' \
+  --header 'cs: seu_client_secret' \
+  --header 'Content-Type: application/json' \
+  --data '{
+  "amount": 5,
+  "payerName": "Nome do cliente",
+  "payerDocument": "12345678909",
+  "transactionId": "id_da_sua_aplicacao_para_identificacao",
+  "description": "Pagamento do cliente TAL"
+}'
+Exemplo de Resposta
+JSON
+{
+  "message": "Transação criada com sucesso",
+  "data": {
+    "transactionId": "31484480",
+    "payer": {
+      "name": "Nome do cliente",
+      "document": "12345678909"
+    },
+    "transactionFee": 23,
+    "transactionType": "DEPOSITO",
+    "transactionMethod": "PIX",
+    "transactionAmount": 455,
+    "transactionState": "PENDENTE",
+    "qrCodeBase64": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAcgAAAHICAY...",
+    "qrcodeUrl": "https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=...",
+    "copyPaste": "00020101021226820014br.gov.bcb.pix2560qrcode.pagsm.com.br/pix/..."
+  }
+}
+Gerar transação Interna
+POST
+/api/transactions/withdraw/internal
+internal
+Cria uma transação interna vinculada a um usuário pelo e-mail.
+Headers Obrigatórios
+Headers HTTP
+Copiar
+Authorization: Basic BASE64(client_id:client_secret)
+
+Content-Type: application/json
+Exemplo de Requisição
+cURL
+Copiar
+curl -X POST 'https://api.misticpay.com/api/transactions/withdraw/internal' \
+  --header 'Authorization: Basic BASE64(client_id:client_secret)' \
+  --header 'Content-Type: application/json' \
+  --data '{
+  "email": "emailrecebedor@gmail.com",
+  "amount": 2,
+  "description": "teste"
+}'
+Exemplo de Resposta
+JSON
+Copiar
+{
+  "message": "Transferência realizada com sucesso",
+  "data": {
+    "transactionId": "id-da-transacao",
+    "amount": 1,
+    "recipientEmail": "emailrecebedor@gmail.com",
+    "recipientName": "Nome do recebedor"
+  }
+}
+Consultar saldo
+GET
+/api/users/balance
+cashout ou all
+Retorna o saldo disponível na conta.
+Exemplo de Requisição
+cURL
+Copiar
+curl -X GET 'https://api.misticpay.com/api/users/balance' \
+  --header 'Authorization: Basic BASE64(client_id:client_secret)'
+Exemplo de Resposta
+JSON
+{
+  "message": "Saldo do usuário obtido com sucesso",
+  "data": {
+    "balance": 0.00
+  }
+}
+Consultar dados do usuário
+GET
+/api/users/info
+consulta
+Retorna os dados do usuário autenticado pelas credenciais CI/CS. Inclui informações pessoais, status da conta e saldo disponível.
+Campos Retornados
+Campo
+Tipo
+Descrição
+name
+string
+Nome do usuário
+email
+string
+Email do usuário
+document
+string
+CPF/CNPJ do usuário
+phone
+string
+Telefone do usuário
+accountVerified
+boolean
+Se a conta do usuário está verificada
+documentVerified
+boolean
+Se o documento do usuário está verificado
+withdrawBlocked
+boolean
+Se o saque está bloqueado para o usuário
+availableBalance
+number
+Saldo disponível (saldo total - saldo bloqueado)
+blockedBalance
+number
+Saldo bloqueado por MEDs ou outras restrições
+Exemplo de Requisição
+cURL
+Copiar
+curl -X GET 'https://api.misticpay.com/api/users/info' \
+  --header 'Authorization: Basic BASE64(client_id:client_secret)'
+Exemplo de Resposta
+JSON
+{
+  "message": "Dados do usuário encontrados com sucesso",
+  "data": {
+    "name": "João Silva",
+    "email": "joao@email.com",
+    "document": "12345678909",
+    "phone": "11999999999",
+    "accountVerified": true,
+    "documentVerified": true,
+    "withdrawBlocked": false,
+    "availableBalance": 850.00,
+    "blockedBalance": 150.00
+  }
+}
+Solicitar saque
+POST
+/api/transactions/withdraw
+cashout
+Solicita um saque via PIX para uma chave PIX. O valor será debitado do saldo disponível. Suporta chaves PIX tradicionais (CPF, CNPJ, Email, Telefone, Chave Aleatória).
+Parâmetros
+Parâmetro
+Tipo
+Descrição
+amount
+*
+number
+Valor em reais para receber. Ex: 100 = R$ 100,00
+pixKey
+*
+string
+Chave PIX do destinatário (sem formatação: 12345678909).
+pixKeyType
+*
+string
+Tipo da chave PIX: "CPF", "CNPJ", "EMAIL", "TELEFONE", "CHAVE_ALEATORIA"
+description
+*
+string
+Descrição do pagamento
+projectWebhook
+string
+URL do webhook para notificações (opcional)
+Exemplo de Requisição
+cURL
+Copiar
+curl -X POST 'https://api.misticpay.com/api/transactions/withdraw' \
+  --header 'Authorization: Basic BASE64(client_id:client_secret)' \
+  --header 'Content-Type: application/json' \
+  --data '{
+  "amount": 1,
+  "pixKey": "12345678909",
+  "pixKeyType": "CPF",
+  "description": "saque com id",
+  "projectWebhook": "https://webhooktrack.com/api/webhook/bZ_7mnNS"
+}'
+Exemplo de Resposta
+JSON
+Copiar
+{
+  "message": "Saque adicionado à fila de processamento",
+  "data": {
+    "jobId": "withdraw-4-1764365277110-jxqfvna",
+    "transactionId": 54345,
+    "status": "QUEUED",
+    "message": "Seu saque será processado em breve"
+  }
+}
+POST
+/api/transactions/withdraw/qrcode
+cashout
+Paga um QR Code Pix a partir do código "copia e cola". O valor será debitado do saldo disponível.
+Somente QR Code estático.
+QR Codes dinâmicos (de cobrança) são recusados com HTTP 422, porque o valor deles é definido pelo recebedor no momento da liquidação e pode mudar depois da validação. Os dados do QR são apurados pelo servidor e revalidados imediatamente antes do pagamento.
+Parâmetros
+Parâmetro
+Tipo
+Descrição
+qrCode
+*
+string
+Código Pix copia e cola (BR Code).
+amount
+number
+Obrigatório apenas quando o QR Code não define valor. Se o QR já traz valor, este campo é ignorado — e se divergir do valor do QR, a requisição é recusada com HTTP 409.
+description
+string
+Descrição do pagamento (opcional)
+projectWebhook
+string
+URL do webhook para notificações (opcional)
+Exemplo de Requisição
+cURL
+Copiar
+curl -X POST 'https://api.misticpay.com/api/transactions/withdraw/qrcode' \
+  --header 'Authorization: Basic BASE64(client_id:client_secret)' \
+  --header 'Content-Type: application/json' \
+  --data '{
+  "qrCode": "00020126580014BR.GOV.BCB.PIX0136...",
+  "description": "pagamento de fornecedor",
+  "projectWebhook": "https://webhooktrack.com/api/webhook/bZ_7mnNS"
+}'
+Exemplo de Resposta
+JSON
+Copiar
+{
+  "message": "Saque adicionado à fila de processamento",
+  "data": {
+    "jobId": "withdraw-4-1764365277110-jxqfvna",
+    "transactionId": 54346,
+    "status": "QUEUED",
+    "message": "Seu saque será processado em breve"
+  }
+}
+Solicitar saque crypto
+POST
+/api/crypto/withdraw-api
+cashout
+Solicita um saque em criptomoeda (USDT BEP20) para uma wallet. O valor será debitado do saldo disponível e convertido para USDT.
+💡 Informações importantes:
+Valor mínimo: R$ 20,00
+Valor máximo: R$ 3.000,00
+Taxa da plataforma: 5% sobre o valor
+Taxa de rede: variável (calculada automaticamente)
+Wallet deve ser válida no formato BEP20 (0x...)
+Parâmetros
+Parâmetro
+Tipo
+Descrição
+amount
+*
+number
+Valor em reais para sacar. Ex: 100 = R$ 100,00 (mínimo R$ 20,00, máximo R$ 3.000,00)
+wallet
+*
+string
+Endereço da wallet BEP20 para receber USDT (formato: 0x seguido de 40 caracteres hexadecimais)
+projectWebhook
+string
+URL do webhook para notificações (opcional)
+Exemplo de Requisição
+cURL
+Copiar
+curl -X POST 'https://api.misticpay.com/api/crypto/withdraw-api' \
+  --header 'Authorization: Basic BASE64(client_id:client_secret)' \
+  --header 'Content-Type: application/json' \
+  --data '{
+  "amount": 100,
+  "wallet": "0x1234567890123456789012345678901234567890",
+  "projectWebhook": "https://webhook.example.com/api/webhook"
+}'
+Exemplo de Resposta
+JSON
+Copiar
+{
+  "message": "Saque crypto adicionado à fila de processamento",
+  "data": {
+    "jobId": "crypto-withdraw-4-1764365277110-jxqfvna",
+    "transactionId": 54345,
+    "status": "QUEUED",
+    "message": "Seu saque crypto será processado em breve"
+  }
+}
+Consultar taxas de cripto
+GET
+/api/crypto/fees
+info
+Consulta informações sobre as taxas de cripto, incluindo taxa da plataforma, taxa de rede e cotação atual.
+💡 Informações importantes:
+Taxa da plataforma: 5% sobre o valor informado
+Taxa de rede: R$ 3,00 (fixa, apenas para informação - já descontada automaticamente pela rede)
+Inclui cotação atual BRL/USD
+Exemplo de Requisição
+cURL
+Copiar
+curl -X GET 'https://api.misticpay.com/api/crypto/fees' \
+  --header 'Authorization: Basic BASE64(client_id:client_secret)' \
+  --header 'Content-Type: application/json'
+Exemplo de Resposta
+JSON
+Copiar
+{
+  "message": "Taxas obtidas com sucesso",
+  "data": {
+    "quote": {
+      "brlPerUSD": 5.25,
+      "networkFee": 3.0,
+      "fixedFeeUSDT": 0.5,
+      "timestamp": "2024-01-01T00:00:00.000Z"
+    },
+    "fees": {
+      "platformFeePercentage": 3,
+      "networkFee": 3.0
+    }
+  }
+}
+Verificar transação
+POST
+/api/transactions/check
+Consulte o status e detalhes de uma transação específica.
+⚠️ Rate Limit:
+Esta rota possui rate limit de
+60 requisições por minuto por IP
+. Requisições que excederem este limite retornarão erro 429.
+Parâmetros
+Parâmetro
+Tipo
+Descrição
+transactionId
+*
+string | number
+ID da transação a ser verificada
+Exemplo de Requisição
+cURL
+Copiar
+curl -X POST 'https://api.misticpay.com/api/transactions/check' \
+  --header 'ci: seu_client_id' \
+  --header 'cs: seu_client_secret' \
+  --header 'Content-Type: application/json' \
+  --data '{
+  "transactionId": "54345"
+}'
+Exemplo de Resposta
+JSON
+Copiar
+{
+  "message": "Transação encontrada com sucesso!",
+  "transaction": {
+    "transactionId": "301124932.60430735",
+    "value": 1.12,
+    "fee": 0.31,
+    "transactionState": "COMPLETO",
+    "transactionType": "DEPOSITO",
+    "transactionMethod": "PIX",
+    "createdAt": "2025-12-02T01:20:18.475Z",
+    "updatedAt": "2025-12-02T01:20:53.002Z"
+  }
+}
+Status Possíveis
+Status
+Descrição
+PENDENTE
+Transação pendente, aguardando pagamento
+COMPLETO
+Transação aprovada e concluída com sucesso
+FALHA
+Transação falhou ou foi rejeitada
+Listar transações
+GET
+/api/users/transactions/list/:page
+consulta
+Lista as transações do usuário com paginação e filtro por status. Retorna no máximo 10 transações por página.
+Autenticação
+Esta rota utiliza autenticação via
+CI/CS
+(Client ID / Client Secret) nos headers da requisição.
+Parâmetros (URL)
+Parâmetro
+Tipo
+Descrição
+page
+*
+number
+Número da página (ex: 1, 2, 3...)
+Parâmetros (Query String)
+Parâmetro
+Tipo
+Descrição
+status
+string
+Filtrar por status: PENDENTE, COMPLETO, FALHA ou CANCELADO (opcional)
+Exemplo de Requisição
+cURL
+Copiar
+curl -X GET 'https://api.misticpay.com/api/users/transactions/list/1?status=COMPLETO' \\
+  --header 'Authorization: Basic BASE64(client_id:client_secret)' \\
+  --header 'Content-Type: application/json'
+Exemplo de Resposta
+JSON
+Copiar
+{
+  "message": "Lista de transações obtida com sucesso",
+  "data": [
+    {
+      "id": 934866,
+      "value": 2,
+      "fee": 0.15,
+      "clientName": "Gustavo",
+      "clientDocument": "15810217478",
+      "description": "Checkout 1042 - teste",
+      "requestIp": "::1",
+      "updatedAt": "2026-03-04T23:47:23.257Z",
+      "transactionState": "COMPLETO",
+      "transactionType": "DEPOSITO",
+      "transactionMethod": "PIX",
+      "source": "CHECKOUT",
+      "endToEndId": null,
+      "clientTransactionId": "checkout-1042-1772668040504-1awhmwv",
+      "createdAt": "2026-03-04T23:47:23.257Z"
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "perPage": 10,
+    "total": 10,
+    "totalPages": 5
+  }
+}
+Campos Retornados
+Campo
+Tipo
+Descrição
+id
+number
+ID da transação
+value
+number
+Valor da transação em reais
+fee
+number
+Taxa cobrada na transação
+clientName
+string
+Nome do cliente da transação
+clientDocument
+string
+Documento do cliente (pode estar mascarado)
+description
+string
+Descrição da transação
+requestIp
+string
+IP de origem da requisição
+transactionState
+string
+Estado da transação: PENDENTE, COMPLETO, FALHA ou CANCELADO
+transactionType
+string
+Tipo da transação (ex: DEPOSITO, RETIRADA)
+transactionMethod
+string
+Método da transação (ex: PIX)
+source
+string
+Origem da transação (ex: API, CHECKOUT)
+endToEndId
+string | null
+Identificador end-to-end do PIX (quando disponível)
+clientTransactionId
+string
+ID da transação do cliente
+createdAt
+string
+Data de criação (ISO 8601)
+updatedAt
+string
+Data da última atualização (ISO 8601)
+pagination.page
+number
+Página atual
+pagination.perPage
+number
+Itens por página (fixo: 10)
+pagination.total
+number
+Total de transações na página atual
+pagination.totalPages
+number
+Total de páginas disponíveis
+Filtros de Status
+Status
+Descrição
+PENDENTE
+Transação pendente, aguardando pagamento
+COMPLETO
+Transação aprovada e concluída com sucesso
+FALHA
+Transação falhou ou foi rejeitada
+CANCELADO
+Transação cancelada
+Erros Possíveis
+Código
+Descrição
+400
+Credenciais de integração não enviadas (ci e cs nos headers)
+401
+Credenciais inválidas
+Listar infrações
+GET
+/api/meds/infractions/list
+Lista todas as infrações (MEDs) registradas para sua conta, com paginação. Inclui detalhes da transação associada e respostas de defesa enviadas.
+Autenticação
+Esta rota utiliza autenticação via
+CI/CS
+(Client ID / Client Secret) nos headers da requisição.
+Parâmetros (Query String)
+Parâmetro
+Tipo
+Descrição
+page
+number
+Página atual (padrão: 1)
+perPage
+number
+Itens por página (padrão: 20)
+Exemplo de Requisição
+cURL
+Copiar
+curl -X GET 'https://api.misticpay.com/api/meds/infractions/list?page=1&perPage=10' \
+  --header 'Authorization: Basic BASE64(client_id:client_secret)'
+Exemplo de Resposta
+JSON
+Copiar
+{
+  "data": {
+    "infractions": [
+      {
+        "id": 42,
+        "externalId": "INF-2026-001",
+        "type": "FRAUD",
+        "status": "WAITING_PSP",
+        "source": "ONLYUP",
+        "endToEndId": "E00000000202602161750abcdef123456",
+        "reportedBy": "DEBITED_PARTICIPANT",
+        "reportDetails": "Transação não reconhecida",
+        "analysisResult": null,
+        "amount": 150.00,
+        "currency": "BRL",
+        "createdAt": "2026-02-16T17:50:00.000Z",
+        "transaction": {
+          "id": 31484,
+          "value": 150.00,
+          "externalId": "TXN-12345",
+          "clientTransactionId": "301124932.60430735",
+          "endToEndId": "E00000000202602161750abcdef123456",
+          "transactionState": "COMPLETO",
+          "transactionType": "DEPOSITO",
+          "createdAt": "2026-02-16T17:45:00.000Z"
+        },
+        "defenseResponses": []
+      }
+    ],
+    "pagination": {
+      "page": 1,
+      "perPage": 10,
+      "total": 1,
+      "totalPages": 1
+    }
+  }
+}
+Status Possíveis da Infração
+Status
+Descrição
+WAITING_PSP
+Aguardando análise — você pode enviar defesa
+ACCEPTED
+Infração aceita — devolução será realizada
+REJECTED
+Infração rejeitada — saldo desbloqueado
+CANCELLED
+Infração cancelada
+Responder infração
+POST
+/api/meds/infractions/:infractionId/defense
+Envia uma resposta de defesa para uma infração específica. Só é possível responder infrações com status
+WAITING_PSP
+e cada infração aceita apenas uma resposta.
+Importante
+A defesa só pode ser enviada uma única vez por infração. Certifique-se de que a justificativa esteja completa antes de enviar.
+Parâmetros (URL)
+Parâmetro
+Tipo
+Descrição
+infractionId
+*
+number
+ID da infração (obtido na listagem)
+Parâmetros (Body JSON)
+Parâmetro
+Tipo
+Descrição
+analise
+*
+string
+Posicionamento:
+"rejeitado"
+ou
+"aceito"
+justificativa
+*
+string
+Texto da defesa (mínimo 10 caracteres)
+proofs
+*
+string[]
+Array de URLs das provas (mínimo 1, máximo 10)
+Exemplo de Requisição
+cURL
+Copiar
+curl -X POST 'https://api.misticpay.com/api/meds/infractions/42/defense' \
+  --header 'Authorization: Basic BASE64(client_id:client_secret)' \
+  --header 'Content-Type: application/json' \
+  --data '{
+  "analise": "rejeitado",
+  "justificativa": "Transação legítima realizada pelo titular da conta.",
+  "proofs": [
+    "https://exemplo.com/comprovante1.png",
+    "https://exemplo.com/comprovante2.pdf"
+  ]
+}'
+Exemplo de Resposta (201)
+JSON
+Copiar
+{
+  "message": "Defesa enviada com sucesso",
+  "data": {
+    "id": 7,
+    "infractionId": 42,
+    "analise": "rejeitado",
+    "justificativa": "Transação legítima realizada pelo titular da conta.",
+    "proofs": [
+      {
+        "url": "https://exemplo.com/comprovante1.png",
+        "fileName": "prova-1",
+        "mimeType": "url"
+      },
+      {
+        "url": "https://exemplo.com/comprovante2.pdf",
+        "fileName": "prova-2",
+        "mimeType": "url"
+      }
+    ],
+    "createdAt": "2026-02-25T19:30:00.000Z"
+  }
+}
+Erros Possíveis
+Código
+Descrição
+400
+Campos obrigatórios ausentes, valor inválido para analise, ou infração já resolvida
+403
+A infração não pertence à sua conta
+404
+Infração não encontrada
+409
+Já existe uma resposta de defesa para esta infração
+Webhook de Depósito
+Conceito de Webhooks
+Webhooks são notificações automáticas enviadas pela MisticPay quando há mudanças no status de transações. São requisições
+HTTP POST
+enviadas para a URL configurada.
+Estrutura do Webhook de Depósito
+JSON
+{
+  "transactionId": 31484480,
+  "transactionType": "DEPOSITO",
+  "transactionMethod": "PIX",
+  "clientName": "Nome do cliente",
+  "clientDocument": "12345678909",
+  "status": "COMPLETO",
+  "value": 455,
+  "fee": 23,
+  "e2e": "1234567890987654321098765432109876543210987654321098765432109876",
+  "ispb": "18236120",
+  "bankName": "NU PAGAMENTOS - IP"
+}
+ispb
+e
+bankName
+identificam o banco da contraparte — o pagador no depósito, o beneficiário no saque. Os dois vêm como
+null
+quando o banco não informa a instituição de origem ou destino.
+Webhook de Saque
+Estrutura do Webhook de Saque
+JSON
+{
+  "transactionId": 31484480,
+  "transactionType": "RETIRADA",
+  "transactionMethod": "PIX",
+  "clientName": "Nome do cliente",
+  "clientDocument": "12345678909",
+  "status": "COMPLETO",
+  "value": 455,
+  "fee": 23,
+  "e2e": "1234567890987654321098765432109876543210987654321098765432109876",
+  "ispb": "18236120",
+  "bankName": "NU PAGAMENTOS - IP"
+}
+ispb
+e
+bankName
+identificam o banco da contraparte — o pagador no depósito, o beneficiário no saque. Os dois vêm como
+null
+quando o banco não informa a instituição de origem ou destino.
+Webhook de MED
+Quando uma infração (MED - Mecanismo Especial de Devolução) é registrada ou atualizada para uma transação, o sistema envia automaticamente uma notificação via webhook para a URL configurada na
+projectWebhook
+da credencial ou da transação.
+Importante
+O webhook de MED é disparado tanto na criação da infração quanto em atualizações (ex: quando o resultado da análise é informado). Utilize o campo
+infraction.status
+para identificar o estado atual.
+Estrutura do Webhook de MED (Infração Criada)
+JSON
+Copiar
+{
+  "event": "INFRACTION",
+  "infraction": {
+    "id": 42,
+    "externalId": "INF-2026-001",
+    "type": "FRAUD",
+    "status": "WAITING_PSP",
+    "amount": 150.00,
+    "currency": "BRL",
+    "analysisResult": null,
+    "analysisDetails": null,
+    "reportedBy": "DEBITED_PARTICIPANT",
+    "reportDetails": "Transação não reconhecida pelo titular da conta",
+    "createdAt": "2026-02-16T17:50:00.000Z"
+  },
+  "transaction": {
+    "transactionId": "TXN-12345",
+    "endToEndId": "E00000000202602161750abcdef123456",
+    "value": 150.00,
+    "status": "COMPLETO",
+    "ispb": "18236120",
+    "bankName": "NU PAGAMENTOS - IP"
+  }
+}
+Estrutura do Webhook de MED (Análise Concluída)
+JSON
+Copiar
+{
+  "event": "INFRACTION",
+  "infraction": {
+    "id": 42,
+    "externalId": "INF-2026-001",
+    "type": "FRAUD",
+    "status": "ACCEPTED",
+    "amount": 150.00,
+    "currency": "BRL",
+    "analysisResult": "AGREED",
+    "analysisDetails": "Fraude confirmada após análise",
+    "reportedBy": "DEBITED_PARTICIPANT",
+    "reportDetails": "Transação não reconhecida pelo titular da conta",
+    "createdAt": "2026-02-16T17:50:00.000Z"
+  },
+  "transaction": {
+    "transactionId": "TXN-12345",
+    "endToEndId": "E00000000202602161750abcdef123456",
+    "value": 150.00,
+    "status": "COMPLETO",
+    "ispb": "18236120",
+    "bankName": "NU PAGAMENTOS - IP"
+  }
+}
+Campos do objeto infraction
+Campo
+Tipo
+Descrição
+id
+number
+ID interno da infração
+externalId
+string
+ID externo da infração (gateway)
+type
+string
+Tipo da infração (ex: FRAUD, REFUND_REQUEST)
+status
+string
+WAITING_PSP, ACCEPTED, REJECTED ou CANCELLED
+amount
+number
+Valor da infração em reais
+currency
+string
+Moeda (padrão: BRL)
+analysisResult
+string | null
+Resultado: AGREED (aceita) ou DISAGREED (rejeitada)
+analysisDetails
+string | null
+Detalhes adicionais da análise
+reportedBy
+string | null
+Quem reportou: DEBITED_PARTICIPANT, CREDITED_PARTICIPANT ou ACCOUNT_HOLDER
+reportDetails
+string | null
+Detalhes do reporte
+createdAt
+string
+Data de criação (ISO 8601)
+Campos do objeto transaction
+Campo
+Tipo
+Descrição
+transactionId
+string
+ID da transação (clientTransactionId ou externalId)
+endToEndId
+string | null
+Identificador end-to-end do PIX
+value
+number
+Valor original da transação
+status
+string
+Estado atual da transação
+Status da Infração
+Status
+Descrição
+WAITING_PSP
+Aguardando análise da instituição
+ACCEPTED
+Infração aceita — devolução será realizada
+REJECTED
+Infração rejeitada
+CANCELLED
+Infração cancelada
+Documentação
+Início
+Introdução
+Autenticação
+Suporte
+Contato
+Termos de Uso
+Política de Privacidade
+Contato
+contato@misticpay.com
++55 (62) 3190-1253
+©
+2026
+Mistic Pay. Todos os direitos reservados.
+Voltar para o site principal
+(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a3ba095a7d9be98e',t:'MTc4OTUwMDUyNw=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();
+(self.__next_f=self.__next_f||[]).push([0])
+self.__next_f.push([1,"1:\"$Sreact.fragment\"\n2:I[58632,[\"/_next/static/chunks/2kez-cy9e_kh8.js\",\"/_next/static/chunks/41fj0kkn2k-7n.js\"],\"GoogleTagManager\"]\n3:I[68332,[\"/_next/static/chunks/2kez-cy9e_kh8.js\",\"/_next/static/chunks/41fj0kkn2k-7n.js\",\"/_next/static/chunks/3r6dilascpvtu.js\",\"/_next/static/chunks/0iiypbf03ojib.js\",\"/_next/static/chunks/077x_p4xa-ugf.js\"],\"\"]\n4:I[89554,[\"/_next/static/chunks/2kez-cy9e_kh8.js\",\"/_next/static/chunks/41fj0kkn2k-7n.js\",\"/_next/static/chunks/3r6dilascpvtu.js\",\"/_next/static/chunks/0iiypbf03ojib.js\",\"/_next/static/chunks/077x_p4xa-ugf.js\"],\"ThemeProvider\"]\n5:I[33173,[\"/_next/static/chunks/2kez-cy9e_kh8.js\",\"/_next/static/chunks/41fj0kkn2k-7n.js\"],\"default\"]\n6:I[78948,[\"/_next/static/chunks/2kez-cy9e_kh8.js\",\"/_next/static/chunks/41fj0kkn2k-7n.js\"],\"default\"]\n8:I[98097,[\"/_next/static/chunks/2kez-cy9e_kh8.js\",\"/_next/static/chunks/41fj0kkn2k-7n.js\",\"/_next/static/chunks/3r6dilascpvtu.js\",\"/_next/static/chunks/0iiypbf03ojib.js\",\"/_next/static/chunks/077x_p4xa-ugf.js\"],\"Toaster\"]\n9:I[3484,[\"/_next/static/chunks/2kez-cy9e_kh8.js\",\"/_next/static/chunks/41fj0kkn2k-7n.js\",\"/_next/static/chunks/3r6dilascpvtu.js\",\"/_next/static/chunks/0iiypbf03ojib.js\",\"/_next/static/chunks/077x_p4xa-ugf.js\"],\"Toaster\"]\na:I[72375,[\"/_next/static/chunks/2kez-cy9e_kh8.js\",\"/_next/static/chunks/41fj0kkn2k-7n.js\"],\"Analytics\"]\nb:I[99123,[\"/_next/static/chunks/2kez-cy9e_kh8.js\",\"/_next/static/chunks/41fj0kkn2k-7n.js\"],\"SpeedInsights\"]\nc:I[24901,[\"/_next/static/chunks/2kez-cy9e_kh8.js\",\"/_next/static/chunks/41fj0kkn2k-7n.js\"],\"MetaPixel\"]\nd:I[26688,[\"/_next/static/chunks/2kez-cy9e_kh8.js\",\"/_next/static/chunks/41fj0kkn2k-7n.js\",\"/_next/static/chunks/3r6dilascpvtu.js\",\"/_next/static/chunks/0iiypbf03ojib.js\",\"/_next/static/chunks/077x_p4xa-ugf.js\"],\"DocsLayoutClient\"]\n11:I[10635,[\"/_next/static/chunks/2kez-cy9e_kh8.js\",\"/_next/static/chunks/41fj0kkn2k-7n.js\"],\"default\",1]\n:HL[\"/_next/static/chunks/3vxctpjyid8ql.css\",\"style\"]\n:HL[\"/_next/static/chunks/09cgirqhiazgs.css\",\"style\"]\n:HL[\"/_next/static/media/83afe278b6a6bb3c-s.p.2bn3s6zvc0dyp.woff2\",\"font\",{\"crossOrigin\":\"\",\"type\":\"font/woff2\"}]\n"])
+self.__next_f.push([1,"0:{\"P\":null,\"c\":[\"\",\"docs\"],\"q\":\"\",\"i\":false,\"f\":[[[\"\",{\"children\":[\"docs\",{\"children\":[\"__PAGE__\",{}]}]},\"$undefined\",\"$undefined\",16],[[\"$\",\"$1\",\"c\",{\"children\":[[[\"$\",\"link\",\"0\",{\"rel\":\"stylesheet\",\"href\":\"/_next/static/chunks/3vxctpjyid8ql.css\",\"precedence\":\"next\",\"crossOrigin\":\"$undefined\",\"nonce\":\"$undefined\"}],[\"$\",\"link\",\"1\",{\"rel\":\"stylesheet\",\"href\":\"/_next/static/chunks/09cgirqhiazgs.css\",\"precedence\":\"next\",\"crossOrigin\":\"$undefined\",\"nonce\":\"$undefined\"}],[\"$\",\"script\",\"script-0\",{\"src\":\"/_next/static/chunks/2kez-cy9e_kh8.js\",\"async\":true,\"nonce\":\"$undefined\"}],[\"$\",\"script\",\"script-1\",{\"src\":\"/_next/static/chunks/41fj0kkn2k-7n.js\",\"async\":true,\"nonce\":\"$undefined\"}]],[\"$\",\"html\",null,{\"lang\":\"pt-BR\",\"suppressHydrationWarning\":true,\"children\":[[\"$\",\"head\",null,{\"children\":[[\"$\",\"link\",null,{\"rel\":\"manifest\",\"href\":\"/manifest.json\"}],[\"$\",\"meta\",null,{\"name\":\"apple-mobile-web-app-capable\",\"content\":\"yes\"}],[\"$\",\"meta\",null,{\"name\":\"apple-mobile-web-app-status-bar-style\",\"content\":\"black-translucent\"}],[\"$\",\"link\",null,{\"rel\":\"apple-touch-icon\",\"sizes\":\"180x180\",\"href\":\"/logo.png\"}]]}],[\"$\",\"$L2\",null,{\"gtmId\":\"GTM-59BZ6CT7\"}],[\"$\",\"body\",null,{\"className\":\"inter_d95ec7d3-module___-IDgq__variable inter_d95ec7d3-module___-IDgq__className\",\"suppressHydrationWarning\":true,\"children\":[[\"$\",\"$L3\",null,{\"id\":\"theme-init\",\"strategy\":\"beforeInteractive\",\"dangerouslySetInnerHTML\":{\"__html\":\"\\n              (function() {\\n                try {\\n                  var theme = localStorage.getItem('theme');\\n                  if (!theme) {\\n                    localStorage.setItem('theme', 'dark');\\n                  }\\n                } catch (e) {}\\n              })();\\n            \"}}],[\"$\",\"$L4\",null,{\"attribute\":\"class\",\"defaultTheme\":\"dark\",\"enableSystem\":true,\"disableTransitionOnChange\":true,\"storageKey\":\"theme\",\"children\":[[\"$\",\"$L5\",null,{\"parallelRouterKey\":\"children\",\"error\":\"$undefined\",\"errorStyles\":\"$undefined\",\"errorScripts\":\"$undefined\",\"template\":[\"$\",\"$L6\",null,{}],\"templateStyles\":\"$undefined\",\"templateScripts\":\"$undefined\",\"notFound\":[\"$L7\",[]],\"forbidden\":\"$undefined\",\"unauthorized\":\"$undefined\"}],[\"$\",\"$L8\",null,{\"position\":\"bottom-right\",\"toastOptions\":{\"duration\":4000,\"style\":{\"background\":\"hsl(var(--background))\",\"color\":\"hsl(var(--foreground))\",\"border\":\"1px solid hsl(var(--border))\",\"borderRadius\":\"8px\",\"boxShadow\":\"0 4px 12px rgba(0, 0, 0, 0.15)\"},\"success\":{\"iconTheme\":{\"primary\":\"hsl(var(--primary))\",\"secondary\":\"hsl(var(--primary-foreground))\"}},\"error\":{\"iconTheme\":{\"primary\":\"hsl(var(--destructive))\",\"secondary\":\"hsl(var(--destructive-foreground))\"}}}}],[\"$\",\"$L9\",null,{}],[\"$\",\"$La\",null,{}],[\"$\",\"$Lb\",null,{}],[\"$\",\"$Lc\",null,{}]]}]]}]]}]]}],{\"children\":[[\"$\",\"$1\",\"c\",{\"children\":[[[\"$\",\"script\",\"script-0\",{\"src\":\"/_next/static/chunks/3r6dilascpvtu.js\",\"async\":true,\"nonce\":\"$undefined\"}],[\"$\",\"script\",\"script-1\",{\"src\":\"/_next/static/chunks/0iiypbf03ojib.js\",\"async\":true,\"nonce\":\"$undefined\"}],[\"$\",\"script\",\"script-2\",{\"src\":\"/_next/static/chunks/077x_p4xa-ugf.js\",\"async\":true,\"nonce\":\"$undefined\"}]],[\"$\",\"html\",null,{\"lang\":\"pt-BR\",\"suppressHydrationWarning\":true,\"children\":[[\"$\",\"head\",null,{\"children\":[[\"$\",\"link\",null,{\"rel\":\"manifest\",\"href\":\"/manifest.json\"}],[\"$\",\"meta\",null,{\"name\":\"apple-mobile-web-app-capable\",\"content\":\"yes\"}],[\"$\",\"meta\",null,{\"name\":\"apple-mobile-web-app-status-bar-style\",\"content\":\"black-translucent\"}],[\"$\",\"link\",null,{\"rel\":\"apple-touch-icon\",\"sizes\":\"180x180\",\"href\":\"/1.png\"}]]}],[\"$\",\"body\",null,{\"className\":\"inter_d95ec7d3-module___-IDgq__variable inter_d95ec7d3-module___-IDgq__className\",\"suppressHydrationWarning\":true,\"children\":[[\"$\",\"$L3\",null,{\"id\":\"theme-init\",\"strategy\":\"beforeInteractive\",\"dangerouslySetInnerHTML\":{\"__html\":\"\\n              (function() {\\n                try {\\n                  var theme = localStorage.getItem('theme');\\n                  if (!theme) {\\n                    localStorage.setItem('theme', 'dark');\\n                  }\\n                } catch (e) {}\\n              })();\\n            \"}}],[\"$\",\"$L4\",null,{\"attribute\":\"class\",\"defaultTheme\":\"dark\",\"enableSystem\":true,\"disableTransitionOnChange\":true,\"storageKey\":\"theme\",\"children\":[[\"$\",\"$Ld\",null,{\"children\":[\"$\",\"$L5\",null,{\"parallelRouterKey\":\"children\",\"error\":\"$undefined\",\"errorStyles\":\"$undefined\",\"errorScripts\":\"$undefined\",\"template\":[\"$\",\"$L6\",null,{}],\"templateStyles\":\"$undefined\",\"templateScripts\":\"$undefined\",\"notFound\":\"$undefined\",\"forbidden\":\"$undefined\",\"unauthorized\":\"$undefined\"}]}],[\"$\",\"$L8\",null,{\"position\":\"bottom-right\",\"toastOptions\":{\"duration\":4000,\"style\":{\"background\":\"hsl(var(--background))\",\"color\":\"hsl(var(--foreground))\",\"border\":\"1px solid hsl(var(--border))\",\"borderRadius\":\"8px\",\"boxShadow\":\"0 4px 12px rgba(0, 0, 0, 0.15)\"},\"success\":{\"iconTheme\":{\"primary\":\"hsl(var(--primary))\",\"secondary\":\"hsl(var(--primary-foreground))\"}},\"error\":{\"iconTheme\":{\"primary\":\"hsl(var(--destructive))\",\"secondary\":\"hsl(var(--destructive-foreground))\"}}}}],\"$Le\"]}]]}]]}]]}],{\"children\":[\"$Lf\",{},null,false,null]},null,false,null]},null,false,null],\"$L10\",false]],\"m\":\"$undefined\",\"G\":[\"$11\",[\"$L12\",\"$L13\"]],\"S\":true,\"h\":null,\"s\":\"$undefined\",\"l\":\"$undefined\",\"p\":\"$undefined\",\"d\":\"$undefined\",\"b\":\"kNGM85W3PMpCWemLfqeIB\"}\n"])
+self.__next_f.push([1,"7:E{\"digest\":\"NEXT_REDIRECT;replace;https://misticpay.com;307;\"}\n"])
+self.__next_f.push([1,"14:I[5387,[\"/_next/static/chunks/2kez-cy9e_kh8.js\",\"/_next/static/chunks/41fj0kkn2k-7n.js\"],\"ClientPageRoot\"]\n15:I[14287,[\"/_next/static/chunks/2kez-cy9e_kh8.js\",\"/_next/static/chunks/41fj0kkn2k-7n.js\",\"/_next/static/chunks/3r6dilascpvtu.js\",\"/_next/static/chunks/0iiypbf03ojib.js\",\"/_next/static/chunks/077x_p4xa-ugf.js\",\"/_next/static/chunks/0txm3saak4lcj.js\",\"/_next/static/chunks/1ij3y_rifxilb.js\"],\"default\"]\n18:I[21281,[\"/_next/static/chunks/2kez-cy9e_kh8.js\",\"/_next/static/chunks/41fj0kkn2k-7n.js\"],\"OutletBoundary\"]\n19:\"$Sreact.suspense\"\n1b:I[21281,[\"/_next/static/chunks/2kez-cy9e_kh8.js\",\"/_next/static/chunks/41fj0kkn2k-7n.js\"],\"ViewportBoundary\"]\n1d:I[21281,[\"/_next/static/chunks/2kez-cy9e_kh8.js\",\"/_next/static/chunks/41fj0kkn2k-7n.js\"],\"MetadataBoundary\"]\ne:[\"$\",\"$L9\",null,{}]\nf:[\"$\",\"$1\",\"c\",{\"children\":[[\"$\",\"$L14\",null,{\"Component\":\"$15\",\"serverProvidedParams\":{\"searchParams\":{},\"params\":{},\"promises\":[\"$@16\",\"$@17\"]}}],[[\"$\",\"script\",\"script-0\",{\"src\":\"/_next/static/chunks/0txm3saak4lcj.js\",\"async\":true,\"nonce\":\"$undefined\"}],[\"$\",\"script\",\"script-1\",{\"src\":\"/_next/static/chunks/1ij3y_rifxilb.js\",\"async\":true,\"nonce\":\"$undefined\"}]],[\"$\",\"$L18\",null,{\"children\":[\"$\",\"$19\",null,{\"name\":\"Next.MetadataOutlet\",\"children\":\"$@1a\"}]}]]}]\n10:[\"$\",\"$1\",\"h\",{\"children\":[null,[\"$\",\"$L1b\",null,{\"children\":\"$L1c\"}],[\"$\",\"div\",null,{\"hidden\":true,\"children\":[\"$\",\"$L1d\",null,{\"children\":[\"$\",\"$19\",null,{\"name\":\"Next.Metadata\",\"children\":\"$L1e\"}]}]}],[\"$\",\"meta\",null,{\"name\":\"next-size-adjust\",\"content\":\"\"}]]}]\n12:[\"$\",\"link\",\"0\",{\"rel\":\"stylesheet\",\"href\":\"/_next/static/chunks/3vxctpjyid8ql.css\",\"precedence\":\"next\",\"crossOrigin\":\"$undefined\",\"nonce\":\"$undefined\"}]\n13:[\"$\",\"link\",\"1\",{\"rel\":\"stylesheet\",\"href\":\"/_next/static/chunks/09cgirqhiazgs.css\",\"precedence\":\"next\",\"crossOrigin\":\"$undefined\",\"nonce\":\"$undefined\"}]\n"])
+self.__next_f.push([1,"16:{}\n17:\"$f:props:children:0:props:serverProvidedParams:params\"\n"])
+self.__next_f.push([1,"1c:[[\"$\",\"meta\",\"0\",{\"charSet\":\"utf-8\"}],[\"$\",\"meta\",\"1\",{\"name\":\"viewport\",\"content\":\"width=device-width, initial-scale=1\"}]]\n"])
+self.__next_f.push([1,"1f:I[63556,[\"/_next/static/chunks/2kez-cy9e_kh8.js\",\"/_next/static/chunks/41fj0kkn2k-7n.js\"],\"IconMark\"]\n1a:null\n"])
+self.__next_f.push([1,"1e:[[\"$\",\"title\",\"0\",{\"children\":\"Documentação da API - MisticPay | MisticPay\"}],[\"$\",\"meta\",\"1\",{\"name\":\"description\",\"content\":\"Documentação completa da API MisticPay. Guia de integração, exemplos de código e referência de endpoints para recebimentos, transferências e consultas.\"}],[\"$\",\"link\",\"2\",{\"rel\":\"author\",\"href\":\"https://misticpay.com\"}],[\"$\",\"meta\",\"3\",{\"name\":\"author\",\"content\":\"MisticPay\"}],[\"$\",\"meta\",\"4\",{\"name\":\"keywords\",\"content\":\"documentação API,API MisticPay,integração pagamento,documentação gateway,API pagamento Brasil,documentação PIX,guia integração,referência API\"}],[\"$\",\"meta\",\"5\",{\"name\":\"creator\",\"content\":\"MisticPay\"}],[\"$\",\"meta\",\"6\",{\"name\":\"publisher\",\"content\":\"MisticPay\"}],[\"$\",\"meta\",\"7\",{\"name\":\"robots\",\"content\":\"index, follow\"}],[\"$\",\"meta\",\"8\",{\"name\":\"googlebot\",\"content\":\"index, follow, max-video-preview:-1, max-image-preview:large, max-snippet:-1\"}],[\"$\",\"link\",\"9\",{\"rel\":\"canonical\",\"href\":\"https://docs.misticpay.com\"}],[\"$\",\"meta\",\"10\",{\"name\":\"mobile-web-app-capable\",\"content\":\"yes\"}],[\"$\",\"meta\",\"11\",{\"name\":\"apple-mobile-web-app-title\",\"content\":\"MisticPay\"}],[\"$\",\"meta\",\"12\",{\"name\":\"apple-mobile-web-app-status-bar-style\",\"content\":\"black-translucent\"}],[\"$\",\"meta\",\"13\",{\"property\":\"og:title\",\"content\":\"Documentação da API - MisticPay\"}],[\"$\",\"meta\",\"14\",{\"property\":\"og:description\",\"content\":\"Documentação completa da API MisticPay. Guia de integração, exemplos de código e referência de endpoints.\"}],[\"$\",\"meta\",\"15\",{\"property\":\"og:url\",\"content\":\"https://docs.misticpay.com\"}],[\"$\",\"meta\",\"16\",{\"property\":\"og:site_name\",\"content\":\"MisticPay Docs\"}],[\"$\",\"meta\",\"17\",{\"property\":\"og:locale\",\"content\":\"pt_BR\"}],[\"$\",\"meta\",\"18\",{\"property\":\"og:image\",\"content\":\"https://misticpay.com/og-image.png\"}],[\"$\",\"meta\",\"19\",{\"property\":\"og:image:width\",\"content\":\"1200\"}],[\"$\",\"meta\",\"20\",{\"property\":\"og:image:height\",\"content\":\"630\"}],[\"$\",\"meta\",\"21\",{\"property\":\"og:image:alt\",\"content\":\"MisticPay - Documentação da API\"}],[\"$\",\"meta\",\"22\",{\"property\":\"og:type\",\"content\":\"website\"}],[\"$\",\"meta\",\"23\",{\"name\":\"twitter:card\",\"content\":\"summary_large_image\"}],[\"$\",\"meta\",\"24\",{\"name\":\"twitter:creator\",\"content\":\"@misticpay\"}],[\"$\",\"meta\",\"25\",{\"name\":\"twitter:title\",\"content\":\"Documentação da API - MisticPay\"}],[\"$\",\"meta\",\"26\",{\"name\":\"twitter:description\",\"content\":\"Documentação completa da API MisticPay. Guia de integração e referência de endpoints.\"}],[\"$\",\"meta\",\"27\",{\"name\":\"twitter:image\",\"content\":\"https://misticpay.com/og-image.png\"}],[\"$\",\"link\",\"28\",{\"rel\":\"icon\",\"href\":\"/favicon.ico\"}],[\"$\",\"link\",\"29\",{\"rel\":\"apple-touch-icon\",\"href\":\"/1.png\"}],[\"$\",\"$L1f\",\"30\",{}]]\n"])
