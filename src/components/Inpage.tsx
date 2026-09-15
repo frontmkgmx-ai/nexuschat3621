@@ -9,6 +9,7 @@ import { ptBR } from "date-fns/locale";
 import { sanitizeUrl } from "../services/storageService";
 import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
 import { StatusViewer } from "./StatusViewer";
+import { prefetchStatusMedia } from "../services/mediaCacheService";
 
 export default function Inpage({ currentUser }: { currentUser: any }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -33,6 +34,7 @@ export default function Inpage({ currentUser }: { currentUser: any }) {
     const unsub = statusService.subscribeActiveStatuses((data) => {
       setStatuses(data);
       setLoading(false);
+      prefetchStatusMedia(data).catch(() => {});
     });
     
     return () => {

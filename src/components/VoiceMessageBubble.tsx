@@ -1,6 +1,7 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { Play, Pause, AlertCircle, RefreshCw } from 'lucide-react';
 import { getPublicFileUrl, sanitizeUrl } from '../services/storageService';
+import { useCachedMedia } from '../services/mediaCacheService';
 
 export function formatDuration(seconds: number): string {
   if (isNaN(seconds) || !isFinite(seconds) || seconds < 0) return '0:00';
@@ -27,6 +28,17 @@ export default function VoiceMessageBubble({ mediaUrl, durationSeconds, mimeType
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const rawUrl = sanitizeUrl(getPublicFileUrl(mediaUrl));
+  const { cachedUrl } = useCachedMedia(rawUrl);
+  const [speed, setSpeed] = useState<number>(1);
+
+  const cycleSpeed = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const nextSpeed = speed === 1 ? 1.5 : speed === 1.5 ? 2 : 1;
+    setSpeed(nextSpeed);
+    if (audioRef.current) {
+      audioRef.current.playbackRate = nextSpeed;
+    }
+  };
 
   const togglePlay = () => {
     if (!audioRef.current) return;
@@ -184,18 +196,34 @@ export default function VoiceMessageBubble({ mediaUrl, durationSeconds, mimeType
         </div>
 
         <div className="flex justify-between items-center text-[11px] font-medium opacity-80">
-          <span className="font-mono">
-            {hasError ? (
-              <span className="text-red-400 font-sans text-[10px]">{errorMessage || 'Erro'}</span>
-            ) : (
-              formatDuration(displayedDuration)
-            )}
-          </span>
-          {mimeType && !hasError && (
-            <span className="text-[9px] uppercase tracking-wider text-zinc-400/80">
-              {mimeType.includes('opus') ? 'Opus' : mimeType.includes('mp4') || mimeType.includes('aac') ? 'AAC' : ''}
+          <div className="flex items-center gap-1.5">
+            <span className="font-mono">
+              {hasError ? (
+                <span className="text-red-400 font-sans text-[10px]">{errorMessage || 'Erro'}</span>
+              ) : (
+                formatDuration(displayedDuration)
+              )}
             </span>
-          )}
+            {mimeType && !hasError && (
+              <span className="text-[9px] uppercase tracking-wider text-zinc-400/80">
+                {mimeType.includes('opus') ? 'Opus' : mimeType.includes('mp4') || mimeType.includes('aac') ? 'AAC' : ''}
+              </span>
+            )}
+          </div>
+
+          <button
+            type="button"
+            onClick={cycleSpeed}
+            className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full transition-colors cursor-pointer ${
+              speed > 1 
+                ? 'bg-indigo-500 text-white' 
+                : isMine 
+                ? 'bg-white/20 text-white hover:bg-white/30' 
+                : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'
+            }`}
+          >
+            {speed}x
+          </button>
         </div>
       </div>
 
@@ -208,8 +236,8 @@ export default function VoiceMessageBubble({ mediaUrl, durationSeconds, mimeType
         onError={handleError}
         className="hidden"
       >
-        {mimeType ? <source src={rawUrl} type={mimeType} /> : null}
-        <source src={rawUrl} />
+        {mimeType ? <source src={cachedUrl || rawUrl} type={mimeType} /> : null}
+        <source src={cachedUrl || rawUrl} />
       </audio>
     </div>
   );

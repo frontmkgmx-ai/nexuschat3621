@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { sanitizeUrl, getEmbedFileUrl, getPublicFileUrl } from "../services/storageService";
-import { File, Download, Play, Pause, Image as ImageIcon, Music, FileText, Film, ZoomIn, RefreshCw } from 'lucide-react';
+import { File, Download, Play, Pause, Image as ImageIcon, Music, FileText, Film, ZoomIn, RefreshCw, Maximize2 } from 'lucide-react';
 import MediaViewerModal from './MediaViewerModal';
 import { MediaFileViewer } from './MediaFileViewer';
+import { useCachedMedia } from '../services/mediaCacheService';
 
 function formatBytes(bytes: number, decimals = 2) {
   if (!+bytes) return '0 Bytes';
@@ -13,7 +14,21 @@ function formatBytes(bytes: number, decimals = 2) {
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
 }
 
-const CustomAudioPlayer = ({ url, name, sizeText, mimeType }: { url: string, name: string, sizeText: string, mimeType?: string }) => {
+const CustomAudioPlayer = ({ 
+  url, 
+  name, 
+  sizeText, 
+  mimeType,
+  onExpand 
+}: { 
+  url: string, 
+  name: string, 
+  sizeText: string, 
+  mimeType?: string,
+  onExpand?: () => void
+}) => {
+  const { cachedUrl } = useCachedMedia(url);
+  const audioSource = cachedUrl || url;
   const audioRef = React.useRef<HTMLAudioElement>(null);
   const [isPlaying, setIsPlaying] = React.useState(false);
   const [isLoading, setIsLoading] = React.useState(false);
@@ -22,6 +37,16 @@ const CustomAudioPlayer = ({ url, name, sizeText, mimeType }: { url: string, nam
   const [progress, setProgress] = React.useState(0);
   const [currentTime, setCurrentTime] = React.useState("0:00");
   const [durationStr, setDurationStr] = React.useState("0:00");
+  const [speed, setSpeed] = React.useState(1);
+
+  const cycleSpeed = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const nextSpeed = speed === 1 ? 1.5 : speed === 1.5 ? 2 : 1;
+    setSpeed(nextSpeed);
+    if (audioRef.current) {
+      audioRef.current.playbackRate = nextSpeed;
+    }
+  };
 
   const togglePlay = () => {
     if (!audioRef.current) return;
@@ -172,7 +197,29 @@ const CustomAudioPlayer = ({ url, name, sizeText, mimeType }: { url: string, nam
           </div>
           <div className="flex justify-between items-center mt-1">
             <span className="text-[10px] text-zinc-500 font-medium">{currentTime}</span>
-            <span className="text-[10px] text-zinc-500 font-medium">{durationStr}</span>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={cycleSpeed}
+                className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-white/10 hover:bg-white/20 text-zinc-300 transition-colors"
+              >
+                {speed}x
+              </button>
+              {onExpand && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onExpand();
+                  }}
+                  title="Expandir reprodutor de áudio"
+                  className="p-1 rounded hover:bg-white/10 text-zinc-400 hover:text-white transition-colors"
+                >
+                  <Maximize2 className="w-3 h-3" />
+                </button>
+              )}
+              <span className="text-[10px] text-zinc-500 font-medium">{durationStr}</span>
+            </div>
           </div>
         </div>
       </div>
@@ -185,8 +232,8 @@ const CustomAudioPlayer = ({ url, name, sizeText, mimeType }: { url: string, nam
         onError={handleError}
         className="hidden" 
       >
-        {mimeType ? <source src={url} type={mimeType} /> : null}
-        <source src={url} />
+        {mimeType ? <source src={audioSource} type={mimeType} /> : null}
+        <source src={audioSource} />
       </audio>
     </div>
   );
@@ -327,7 +374,24 @@ export default function MessageFilePreview({ message }: { message: any }) {
   }
 
   if (isAudio) {
-    return <CustomAudioPlayer url={url} name={name} sizeText={sizeText} mimeType={mimeType} />;
+    return (
+      <>
+        <CustomAudioPlayer 
+          url={url} 
+          name={name} 
+          sizeText={sizeText} 
+          mimeType={mimeType} 
+          onExpand={() => setIsViewerOpen(true)}
+        />
+        <MediaViewerModal 
+          isOpen={isViewerOpen} 
+          onClose={() => setIsViewerOpen(false)} 
+          mediaUrl={url} 
+          mimeType={mimeType} 
+          fileName={name}
+        />
+      </>
+    );
   }
 
   return (

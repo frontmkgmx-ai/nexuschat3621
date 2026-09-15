@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Play, Pause, Volume2, VolumeX, Volume1, Maximize, Minimize, Settings, Download, MoreVertical, Check, PictureInPicture } from 'lucide-react';
 import { sanitizeUrl } from '../services/storageService';
+import { useCachedMedia } from '../services/mediaCacheService';
 
 export default function CustomVideoPlayer({
     src,
@@ -11,6 +12,9 @@ export default function CustomVideoPlayer({
     fileName?: string;
     autoPlay?: boolean;
 }) {
+    const { cachedUrl } = useCachedMedia(src);
+    const videoSource = cachedUrl || src;
+
     const videoRef = useRef<HTMLVideoElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const [isPlaying, setIsPlaying] = useState(autoPlay);
@@ -191,7 +195,7 @@ export default function CustomVideoPlayer({
         >
             <video
                 ref={videoRef}
-                src={src}
+                src={videoSource}
                 className="w-full h-full object-contain cursor-pointer"
                 onClick={togglePlay}
                 playsInline

@@ -4,7 +4,6 @@ import { db, rtdb } from "../lib/firebase";
 import { collection, query, where, getDocs, setDoc, doc, updateDoc, arrayUnion, getDoc } from "firebase/firestore";
 import { ref, onValue, remove } from "firebase/database";
 import { motion, AnimatePresence } from "motion/react";
-import { useNexusNative } from "../hooks/useNexusNative";
 import { sanitizeUrl } from "../services/storageService";
 import { QRCodeSVG } from "qrcode.react";
 
@@ -16,8 +15,6 @@ export default function Login({ onLogin }: { onLogin: (user: any, isNewUser?: bo
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [qrSessionId, setQrSessionId] = useState("");
-
-  const { isNative } = useNexusNative();
 
   useEffect(() => {
     if (view === "qrcode") {
@@ -62,7 +59,7 @@ export default function Login({ onLogin }: { onLogin: (user: any, isNewUser?: bo
       const q = query(collection(db, "users"), where("username", "==", username.trim()));
       const querySnapshot = await getDocs(q);
 
-      const deviceName = isNative ? "Nexus Desktop App" : /Mobi|Android/i.test(navigator.userAgent) ? "Mobile Browser" : "Desktop Browser";
+      const deviceName = /Mobi|Android/i.test(navigator.userAgent) ? "Dispositivo Móvel" : "Navegador Web";
       const newSessionId = "sess_" + Date.now().toString(36) + Math.random().toString(36).substring(2);
       const deviceInfo = {
         id: newSessionId,
@@ -168,7 +165,7 @@ export default function Login({ onLogin }: { onLogin: (user: any, isNewUser?: bo
                     value={JSON.stringify({ 
                       type: 'login', 
                       sessionId: qrSessionId,
-                      deviceInfo: { id: qrSessionId, device: isNative ? "Nexus Desktop App" : "Desktop Browser", lastActive: Date.now() }
+                      deviceInfo: { id: qrSessionId, device: /Mobi|Android/i.test(navigator.userAgent) ? "Dispositivo Móvel" : "Navegador Web", lastActive: Date.now() }
                     })}
                     size={180}
                     level="H"
@@ -300,7 +297,7 @@ export default function Login({ onLogin }: { onLogin: (user: any, isNewUser?: bo
                     {view === "login" ? "Criar uma conta agora" : "Entrar com conta existente"}
                   </button>
                   
-                  {(!/Mobi|Android/i.test(navigator.userAgent) || isNative) && view === "login" && (
+                  {view === "login" && (
                     <button
                       type="button"
                       onClick={() => {

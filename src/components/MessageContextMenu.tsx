@@ -18,6 +18,7 @@ interface MessageContextMenuProps {
   onForward?: () => void;
   onReact?: (emoji: string) => void;
   onDownload?: () => void;
+  onShowDetails?: () => void;
 }
 
 export default function MessageContextMenu({
@@ -33,7 +34,8 @@ export default function MessageContextMenu({
   onEdit,
   onForward,
   onReact,
-  onDownload
+  onDownload,
+  onShowDetails
 }: MessageContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -137,6 +139,12 @@ export default function MessageContextMenu({
         {onForward && (
           <button onClick={() => { onForward(); onClose(); }} className="w-full px-4 py-2 flex items-center gap-3 hover:bg-white/5 transition-colors text-zinc-200">
             <Share className="w-4 h-4 text-zinc-400" /> Encaminhar
+          </button>
+        )}
+
+        {onShowDetails && (
+          <button onClick={() => { onShowDetails(); onClose(); }} className="w-full px-4 py-2 flex items-center gap-3 hover:bg-white/5 transition-colors text-zinc-200">
+            <Info className="w-4 h-4 text-zinc-400" /> Detalhes da mensagem
           </button>
         )}
 

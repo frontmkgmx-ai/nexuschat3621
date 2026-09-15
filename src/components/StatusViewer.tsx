@@ -5,6 +5,7 @@ import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { sanitizeUrl } from "../services/storageService";
 import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
+import { useCachedMedia, prefetchMedia } from "../services/mediaCacheService";
 
 interface StatusViewerProps {
   currentGroup: any;
@@ -29,6 +30,16 @@ export function StatusViewer({ currentGroup, viewingStatusIdx, currentUser, onNe
   const elapsedRef = useRef<number>(0);
 
   const currentStatus = currentGroup.statuses[viewingStatusIdx];
+  const { cachedUrl } = useCachedMedia(currentStatus?.url);
+
+  // Proactively warm cache for next and previous slides
+  useEffect(() => {
+    if (!currentGroup?.statuses) return;
+    const nextStatus = currentGroup.statuses[viewingStatusIdx + 1];
+    const prevStatus = currentGroup.statuses[viewingStatusIdx - 1];
+    if (nextStatus?.url) prefetchMedia(nextStatus.url);
+    if (prevStatus?.url) prefetchMedia(prevStatus.url);
+  }, [currentGroup, viewingStatusIdx]);
 
   const getStatusDuration = () => {
      let d = currentStatus.durationSeconds;
@@ -210,7 +221,7 @@ export function StatusViewer({ currentGroup, viewingStatusIdx, currentUser, onNe
              doubleClick={{ step: 0.5 }} 
            > 
              <TransformComponent wrapperClass="w-full h-full" contentClass="w-full h-full flex items-center justify-center"> 
-               <img src={currentStatus.url} className="w-full h-full object-contain pointer-events-none" alt="Status" /> 
+               <img src={cachedUrl || currentStatus.url} className="w-full h-full object-contain pointer-events-none" alt="Status" /> 
              </TransformComponent> 
            </TransformWrapper> 
          )} 

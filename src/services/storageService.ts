@@ -274,3 +274,12 @@ export async function mkdirFileApi(path: string): Promise<{success: boolean}> {
 
 export const STREAMX_BUCKET_ID = MYCLOUD_BUCKET_ID;
 
+// Media Cache utilities
+export { 
+  getCachedMediaUrl, 
+  prefetchMedia, 
+  prefetchStatusMedia, 
+  clearMediaCache, 
+  useCachedMedia 
+} from "./mediaCacheService";
+

@@ -47,12 +47,8 @@ import Inpage from "./Inpage";
 import TermsAndPrivacy from "./TermsAndPrivacy";
 import CommunitiesTab from "./CommunitiesTab";
 import ScanQRCodeView from "./ScanQRCodeView";
-import { useNexusNative } from "../hooks/useNexusNative";
-import DesktopSettings from "./DesktopSettings";
 
-import WindowsAppView from './WindowsAppView';
-
-type InternalTab = "CHATS" | "CONTACTS" | "GROUPS" | "SETTINGS" | "PROFILE" | "INPAGE" | "COMMUNITIES" | "NEWS" | "QRCODE" | "WINDOWS_APP";
+type InternalTab = "CHATS" | "CONTACTS" | "GROUPS" | "SETTINGS" | "PROFILE" | "INPAGE" | "COMMUNITIES" | "NEWS" | "QRCODE";
 
 import ConfirmModal from "./ConfirmModal";
 
@@ -71,7 +67,6 @@ export default function Sidebar({
   isMobileHidden?: boolean;
   onOpenProfile?: (userId: string) => void;
 }) {
-  const { isNative } = useNexusNative();
   const [activeTab, setActiveTab] = useState<InternalTab>("CHATS");
   const [settingsView, setSettingsView] = useState<"MENU" | "ACCOUNT" | "PRIVACY" | "AUDIO_VIDEO" | "BACKUPS" | "TERMS">("MENU");
   const [confirmState, setConfirmState] = useState<{isOpen: boolean, title: string, message: string, onConfirm: () => void}>({
@@ -705,13 +700,10 @@ export default function Sidebar({
           <NavRailItem icon={<CircleDashed className="w-6 h-6" />} label="Status" active={activeTab === "INPAGE"} onClick={() => setActiveTab("INPAGE")} />
           <NavRailItem icon={<Globe className="w-6 h-6" />} label="Communities" active={activeTab === "COMMUNITIES"} onClick={() => setActiveTab("COMMUNITIES")} />
           <NavRailItem icon={<Newspaper className="w-6 h-6" />} label="News" active={activeTab === "NEWS"} onClick={() => setActiveTab("NEWS")} />
-          {isNative && (
-            <NavRailItem icon={<Monitor className="w-6 h-6" />} label="Windows" active={activeTab === "WINDOWS_APP"} onClick={() => setActiveTab("WINDOWS_APP")} />
-          )}
         </div>
 
         <div className="flex flex-col gap-4 w-full px-3 mt-auto">
-          {(!isNative && window.innerWidth <= 768) && (
+          {(window.innerWidth <= 768) && (
             <NavRailItem icon={<QrCode className="w-6 h-6" />} label="Scan QR" active={activeTab === "QRCODE"} onClick={() => setActiveTab("QRCODE")} />
           )}
           <NavRailItem icon={<Settings className="w-6 h-6" />} label="Settings" active={activeTab === "SETTINGS"} onClick={() => setActiveTab("SETTINGS")} />
@@ -748,10 +740,7 @@ export default function Sidebar({
           <MobileNavItem icon={<CircleDashed className="w-5 h-5" />} active={activeTab === "INPAGE"} onClick={() => setActiveTab("INPAGE")} />
           <MobileNavItem icon={<Globe className="w-5 h-5" />} active={activeTab === "COMMUNITIES"} onClick={() => setActiveTab("COMMUNITIES")} />
           <MobileNavItem icon={<Newspaper className="w-5 h-5" />} active={activeTab === "NEWS"} onClick={() => setActiveTab("NEWS")} />
-          {isNative && (
-            <MobileNavItem icon={<Monitor className="w-5 h-5" />} active={activeTab === "WINDOWS_APP"} onClick={() => setActiveTab("WINDOWS_APP")} />
-          )}
-          {(!isNative && window.innerWidth <= 768) && (
+          {(window.innerWidth <= 768) && (
             <MobileNavItem icon={<QrCode className="w-5 h-5" />} active={activeTab === "QRCODE"} onClick={() => setActiveTab("QRCODE")} />
           )}
           <MobileNavItem icon={<Settings className="w-5 h-5" />} active={activeTab === "SETTINGS"} onClick={() => setActiveTab("SETTINGS")} />
@@ -1381,18 +1370,6 @@ export default function Sidebar({
           )}
 
           {activeTab === "SETTINGS" && (
-            isNative ? (
-              <motion.div
-                key="settings-native"
-                initial={{ x: 20, opacity: 0 }}
-                animate={{ x: 0, opacity: 1 }}
-                exit={{ x: 20, opacity: 0 }}
-                transition={{ duration: 0.2 }}
-                className="flex flex-col h-full absolute inset-0 w-full pt-4 bg-zinc-900"
-              >
-                <DesktopSettings onLogout={onLogout} />
-              </motion.div>
-            ) : (
             <motion.div 
               key="settings"
               initial={{ x: 20, opacity: 0 }}
@@ -1674,7 +1651,6 @@ export default function Sidebar({
                 </AnimatePresence>
               </div>
             </motion.div>
-            )
           )}
 
           {activeTab === "NEWS" && (
@@ -1689,11 +1665,7 @@ export default function Sidebar({
             <CommunitiesTab currentUser={currentUser} onSelectConvo={onSelectConvo} />
           )}
 
-          {activeTab === "WINDOWS_APP" && isNative && (
-            <WindowsAppView />
-          )}
-
-          {activeTab === "QRCODE" && (!isNative && window.innerWidth <= 768) && (
+          {activeTab === "QRCODE" && (
             <ScanQRCodeView currentUser={currentUser} />
           )}
         </AnimatePresence>

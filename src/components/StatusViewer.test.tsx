@@ -4,21 +4,23 @@ import { StatusViewer } from "./StatusViewer";
 import React from "react";
 
 // Mock resize observer and matchMedia for zoom-pan-pinch and motion
-window.ResizeObserver = class ResizeObserver {
-  observe() {}
-  unobserve() {}
-  disconnect() {}
-};
-window.matchMedia = vi.fn().mockImplementation(query => ({
-  matches: false,
-  media: query,
-  onchange: null,
-  addListener: vi.fn(), // Deprecated
-  removeListener: vi.fn(), // Deprecated
-  addEventListener: vi.fn(),
-  removeEventListener: vi.fn(),
-  dispatchEvent: vi.fn(),
-}));
+if (typeof window !== "undefined") {
+  window.ResizeObserver = class ResizeObserver {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  };
+  window.matchMedia = vi.fn().mockImplementation(query => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  }));
+}
 
 describe("StatusViewer", () => {
   let mockOnNext: any, mockOnPrev: any, mockOnClose: any, mockOnRemove: any;

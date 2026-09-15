@@ -197,6 +197,19 @@ async function startServer() {
         }
         proxyReq.setHeader("X-API-Key", apiKey);
         proxyReq.setHeader("Authorization", `Bearer ${apiKey}`);
+      },
+      proxyRes: (proxyRes, req, res) => {
+        // Enforce strong caching and range support for media objects and streams
+        const method = req.method;
+        if (method === 'GET' || method === 'HEAD') {
+          const status = proxyRes.statusCode || 200;
+          if (status >= 200 && status < 300) {
+            proxyRes.headers['cache-control'] = 'public, max-age=31536000, immutable';
+            if (!proxyRes.headers['accept-ranges']) {
+              proxyRes.headers['accept-ranges'] = 'bytes';
+            }
+          }
+        }
       }
     }
   });

@@ -15,7 +15,6 @@ import { useNexusNative } from "./hooks/useNexusNative";
 import { Toaster, toast } from 'sonner';
 
 export default function App() {
-  const { isNative } = useNexusNative();
   const [pathname, setPathname] = useState(() => window.location.pathname);
 
   useEffect(() => {
@@ -301,18 +300,6 @@ export default function App() {
     }
   };
 
-  useEffect(() => {
-    if (isNative) {
-      const handleContextMenu = (e: MouseEvent) => {
-        e.preventDefault();
-      };
-      document.addEventListener('contextmenu', handleContextMenu);
-      return () => {
-        document.removeEventListener('contextmenu', handleContextMenu);
-      };
-    }
-  }, [isNative]);
-
   if (normalizedPath === '/terms') {
     return <Terms />;
   }
@@ -336,11 +323,11 @@ export default function App() {
 
   return (
     <div 
-      className={`h-full w-full bg-zinc-950 flex flex-col items-center justify-center overflow-hidden relative ${isNative ? 'p-0' : 'p-0 md:p-4'}`}
+      className="h-full w-full bg-zinc-950 flex flex-col items-center justify-center overflow-hidden relative p-0 md:p-4"
     >
       <Toaster position="top-center" theme="dark" richColors />
       <div 
-        className={`flex w-full h-full bg-zinc-900 z-10 overflow-hidden relative ${isNative ? 'max-w-none border-none rounded-none' : 'max-w-[1600px] md:border md:border-zinc-800 shadow-2xl md:rounded-2xl'}`}
+        className="flex w-full h-full bg-zinc-900 z-10 overflow-hidden relative max-w-[1600px] md:border md:border-zinc-800 shadow-2xl md:rounded-2xl"
         style={{ WebkitTransform: "translate3d(0,0,0)", transform: "translate3d(0,0,0)" }}
       >
         <Sidebar

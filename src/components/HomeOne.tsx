@@ -165,51 +165,7 @@ export default function HomeOne() {
             <h2 className="text-5xl font-black mb-6 tracking-tight">Experimente o Nexus.</h2>
             <p className="text-xl text-zinc-400 mb-16 max-w-2xl mx-auto">Disponível em todas as plataformas com sincronização perfeita. Comece sua jornada agora.</p>
 
-            <div className="grid md:grid-cols-3 gap-8">
-              {/* Windows */}
-              <div className="bg-zinc-900/40 backdrop-blur-xl border border-zinc-800/60 p-10 rounded-[40px] flex flex-col items-center hover:border-indigo-500/50 transition-all hover:bg-zinc-900/60 group relative overflow-hidden shadow-2xl">
-                <div className="w-20 h-20 rounded-3xl bg-blue-500/10 flex items-center justify-center mb-8 group-hover:scale-110 transition-transform duration-500">
-                  <Monitor className="w-10 h-10 text-blue-400" />
-                </div>
-                <h3 className="text-2xl font-bold mb-3">Windows</h3>
-                <p className="text-zinc-500 mb-8 text-center leading-relaxed">Experiência desktop nativa, notificações em tempo real e atalhos globais.</p>
-                
-                <div className="mt-auto w-full relative h-[60px]">
-                  <AnimatePresence mode="wait">
-                    {downloadingOS === 'windows' ? (
-                      <motion.div
-                        key="loading"
-                        initial={{ opacity: 0, scale: 0.9 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.9 }}
-                        className="absolute inset-0 bg-zinc-800 rounded-2xl overflow-hidden shadow-inner flex items-center"
-                      >
-                         <motion.div 
-                           className="absolute top-0 left-0 bottom-0 bg-gradient-to-r from-blue-600 to-indigo-500"
-                           initial={{ width: "0%" }}
-                           animate={{ width: `${downloadProgress}%` }}
-                         />
-                         <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/diagonal-stripes.png')] opacity-20 mix-blend-overlay animate-[slide_1s_linear_infinite]" />
-                         <span className="relative z-10 w-full text-center font-bold text-sm text-white drop-shadow-md">
-                           {downloadProgress === 100 ? "Concluído!" : `Baixando... ${downloadProgress}%`}
-                         </span>
-                      </motion.div>
-                    ) : (
-                      <motion.button
-                        key="btn"
-                        initial={{ opacity: 0, scale: 0.9 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.9 }}
-                        onClick={() => handleDownload('windows')}
-                        className="absolute inset-0 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl font-bold transition-all w-full flex items-center justify-center gap-2 group-hover:bg-blue-600 group-hover:border-blue-500 group-hover:text-white"
-                      >
-                        Baixar x64 <Download className="w-4 h-4 opacity-0 group-hover:opacity-100 -translate-y-2 group-hover:translate-y-0 transition-all" />
-                      </motion.button>
-                    )}
-                  </AnimatePresence>
-                </div>
-              </div>
-
+            <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
               {/* Android */}
               <div className="bg-zinc-900/40 backdrop-blur-xl border border-zinc-800/60 p-10 rounded-[40px] flex flex-col items-center hover:border-emerald-500/50 transition-all hover:bg-zinc-900/60 group relative overflow-hidden shadow-2xl">
                 <div className="w-20 h-20 rounded-3xl bg-emerald-500/10 flex items-center justify-center mb-8 group-hover:scale-110 transition-transform duration-500">

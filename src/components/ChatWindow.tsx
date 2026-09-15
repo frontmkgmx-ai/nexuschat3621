@@ -7,10 +7,12 @@ import { collection, query, where, onSnapshot, updateDoc, doc, writeBatch, addDo
 import { ref as dbRef, onValue } from "firebase/database";
 import MessageFilePreview from "./MessageFilePreview";
 import VoiceMessageBubble from "./VoiceMessageBubble";
-import { sanitizeUrl } from "../services/storageService";
+import { sanitizeUrl, getPublicFileUrl } from "../services/storageService";
 import CallRoom from "./CallRoom";
 import ChatInput from "./ChatInput";
 import MessageContextMenu, { ContextMenuPosition } from "./MessageContextMenu";
+import MessageDetailsModal from "./MessageDetailsModal";
+import MediaViewerModal from "./MediaViewerModal";
 import { useLongPress } from "../hooks/useLongPress";
 import LinkPreviewCard from "./LinkPreviewCard";
 import ChatSettingsPanel from "./ChatSettingsPanel";
@@ -331,6 +333,13 @@ export default function ChatWindow({
   const [replyingTo, setReplyingTo] = useState<any>(null);
   const [editingMsg, setEditingMsg] = useState<any>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [detailsMessage, setDetailsMessage] = useState<any>(null);
+  const [activeMediaModal, setActiveMediaModal] = useState<{
+    url: string;
+    mimeType: string;
+    name: string;
+    embedUrl?: string;
+  } | null>(null);
   const [activityStatus, setActivityStatus] = useState<string>("");
   const [activeCallParticipants, setActiveCallParticipants] = useState<string[]>([]);
   
@@ -838,7 +847,39 @@ export default function ChatWindow({
         onEdit={() => setEditingMsg(contextMenu.msg)}
         onDownload={handleDownload}
         onReact={handleReact}
+        onShowDetails={() => setDetailsMessage(contextMenu.msg)}
       />
+
+      {detailsMessage && (
+        <MessageDetailsModal
+          isOpen={!!detailsMessage}
+          message={detailsMessage}
+          currentUserId={currentUser._id}
+          onClose={() => setDetailsMessage(null)}
+          onReact={handleReact}
+          onOpenMedia={(file) => {
+            const url = file.downloadUrl || file.url || (file.path ? getPublicFileUrl(file.path) : '');
+            if (url) {
+              setActiveMediaModal({
+                url,
+                mimeType: file.type || '',
+                name: file.name || 'Mídia',
+              });
+            }
+          }}
+        />
+      )}
+
+      {activeMediaModal && (
+        <MediaViewerModal
+          isOpen={!!activeMediaModal}
+          onClose={() => setActiveMediaModal(null)}
+          mediaUrl={activeMediaModal.url}
+          embedUrl={activeMediaModal.embedUrl}
+          mimeType={activeMediaModal.mimeType}
+          fileName={activeMediaModal.name}
+        />
+      )}
 
       <AnimatePresence>
         {isSettingsOpen && (
