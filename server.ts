@@ -197,7 +197,7 @@ async function startServer() {
            return;
         }
         proxyReq.setHeader("X-API-Key", apiKey);
-        proxyReq.setHeader("Authorization", `Bearer ${apiKey}`);
+        // Do not set Authorization header
       },
       proxyRes: (proxyRes, req, res) => {
         // Enforce strong caching and range support for media objects and streams
