@@ -2,38 +2,12 @@ import express from "express";
 import { createProxyMiddleware } from "http-proxy-middleware";
 import { createServer as createViteServer } from "vite";
 import path from "path";
-import { S3Client, PutObjectCommand, DeleteObjectCommand, ListObjectsV2Command } from "@aws-sdk/client-s3";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { Server as SocketIOServer } from "socket.io";
 import { createServer as createHttpServer } from "http";
 import dotenv from "dotenv";
 import cors from "cors";
 
 dotenv.config();
-
-function cleanEnvUrl(url?: string): string | undefined {
-  if (!url) return url;
-  if (url.includes('google.com/url')) {
-    try {
-      const urlObj = new URL(url);
-      return decodeURIComponent(urlObj.searchParams.get('q') || url);
-    } catch {
-      return url;
-    }
-  }
-  return url;
-}
-
-const s3Client = new S3Client({
-  forcePathStyle: true,
-  region: "auto",
-  endpoint: cleanEnvUrl(process.env.R2_ENDPOINT) || "https://7b6b27d12265ebd16b19f2cf1577f778.r2.cloudflarestorage.com",
-  credentials: {
-    accessKeyId: process.env.R2_ACCESS_KEY_ID || "",
-    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY || "",
-  }
-});
-const BUCKET_NAME = process.env.R2_BUCKET_NAME || "nexuschat";
 
 async function startServer() {
   const app = express();
@@ -61,7 +35,7 @@ async function startServer() {
   const httpServer = createHttpServer(app);
   
   const io = new SocketIOServer(httpServer, {
-    path: process.env.SOCKET_PATH || '/socket.io',
+    path: '/socket.io',
     cors: {
       origin: allowedOrigins,
       methods: ["GET", "POST"],
@@ -115,6 +89,74 @@ async function startServer() {
     });
   });
 
+  // Storage Health Check
+  app.get("/api/storage/health", async (req, res) => {
+    try {
+      let baseUrl = process.env.STREAMX_BASE_URL || "https://streamx.frontmk.online/api/storage/v1";
+      // Ensure the URL correctly points to the API if the env var was misconfigured
+      if (baseUrl === "https://streamx.frontmk.online") {
+         baseUrl = "https://streamx.frontmk.online/api/storage/v1";
+      } else if (baseUrl === "https://streamx.frontmk.online/api/storage") {
+         baseUrl = "https://streamx.frontmk.online/api/storage/v1";
+      }
+
+      const bucketId = process.env.STREAMX_BUCKET_ID || "5500ceff-6d51-4f33-aee4-a07e2725ddaf";
+      
+      let apiKey = process.env.STREAMX_API_KEY || process.env.MYCLOUD_API_KEY;
+      if (apiKey === 'mk_f3bc057a386d4d337b3524a2c1f82311db71cc047cea2b42' && process.env.MYCLOUD_API_KEY) {
+         apiKey = process.env.MYCLOUD_API_KEY; // Safeguard against the old wrong key stuck in the container env
+      }
+
+      if (!apiKey) {
+        return res.json({
+          configured: false,
+          error: "KEY_MISSING",
+          code: "KEY_MISSING"
+        });
+      }
+
+      if (bucketId !== "5500ceff-6d51-4f33-aee4-a07e2725ddaf") {
+         return res.json({
+          configured: false,
+          error: "BUCKET_NOT_FOUND",
+          code: "BUCKET_NOT_FOUND"
+        });
+      }
+
+      const checkUrl = `${baseUrl}/buckets/${bucketId}/objects`;
+      const response = await fetch(checkUrl, {
+        headers: {
+          "X-API-Key": apiKey,
+          "Authorization": `Bearer ${apiKey}`
+        }
+      });
+
+      if (response.status === 401) {
+         return res.json({ configured: false, error: "UNAUTHORIZED", code: "UNAUTHORIZED" });
+      }
+      if (response.status === 403) {
+         return res.json({ configured: false, error: "FORBIDDEN", code: "FORBIDDEN" });
+      }
+      if (response.status === 404) {
+         return res.json({ configured: false, error: "BUCKET_NOT_FOUND", code: "BUCKET_NOT_FOUND" });
+      }
+
+      if (response.ok) {
+         return res.json({
+            configured: true,
+            bucketId,
+            baseUrl,
+            upstreamStatus: response.status,
+            code: "OK"
+         });
+      }
+
+      return res.json({ configured: false, error: "UPSTREAM_ERROR", code: "UPSTREAM_ERROR", upstreamStatus: response.status });
+    } catch (e: any) {
+      return res.json({ configured: false, error: "UPSTREAM_ERROR", code: "UPSTREAM_ERROR", details: e.message });
+    }
+  });
+
   // MyCloud Storage API Proxy (mounted before express.json() to stream multipart and binary payloads cleanly)
   // We use pathFilter so Express preserves the full path (/api/storage/...) when proxying to streamx.frontmk.online
   const myCloudProxy = createProxyMiddleware({
@@ -125,7 +167,7 @@ async function startServer() {
       proxyReq: (proxyReq, req, res) => {
         // Limitar rotas e métodos
         const method = req.method;
-        if (!['GET', 'POST', 'DELETE', 'OPTIONS'].includes(method!)) {
+        if (!['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'HEAD'].includes(method!)) {
            res.writeHead(405, { 'Content-Type': 'application/json' });
            res.end(JSON.stringify({ error: "Method not allowed" }));
            proxyReq.destroy();
@@ -141,7 +183,12 @@ async function startServer() {
            return;
         }
 
-        const apiKey = process.env.STREAMX_API_KEY || process.env.MYCLOUD_API_KEY;
+        const url = req.url || '';
+        let apiKey = process.env.STREAMX_API_KEY || process.env.MYCLOUD_API_KEY;
+        if (apiKey === 'mk_f3bc057a386d4d337b3524a2c1f82311db71cc047cea2b42' && process.env.MYCLOUD_API_KEY) {
+           apiKey = process.env.MYCLOUD_API_KEY; // Safeguard for old key
+        }
+
         if (!apiKey) {
            res.writeHead(500, { 'Content-Type': 'application/json' });
            res.end(JSON.stringify({ error: "Storage API Key is not configured." }));
@@ -187,7 +234,7 @@ async function startServer() {
       name: "Nexus Calls API",
       version: "1.0.0",
       api: process.env.PUBLIC_API_URL || "https://call.ironvalecraft.shop",
-      socket: process.env.SOCKET_PATH || "/socket.io",
+      socket: "/socket.io",
       panel: process.env.PUBLIC_PANEL_URL || "https://painelcall.ironvalecraft.shop",
       docs: "/docs",
       health: "/health"

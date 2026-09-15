@@ -8,7 +8,7 @@ export default function DiagnosticPanel() {
   
   const API_URL = import.meta.env.VITE_CALL_API_URL || 'Padrão Interno';
   const WS_URL = import.meta.env.VITE_CALL_WS_URL || 'Padrão Interno';
-  const SOCKET_PATH = import.meta.env.VITE_CALL_SOCKET_PATH || '/socket.io';
+  const SOCKET_PATH = '/socket.io';
 
   const [testResults, setTestResults] = useState({
     mic: 'Pendente',

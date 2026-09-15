@@ -1,8 +1,6 @@
 import { CALL_API_BASE } from './callApi';
 
-const STREAMX_BUCKET_ID = import.meta.env.VITE_STREAMX_BUCKET_ID || "d36cc6d9-ad6d-4243-bd39-0543b4bea4be";
-// Fallback para manter componentes antigos funcionando
-const MYCLOUD_BUCKET_ID = STREAMX_BUCKET_ID;
+export const MYCLOUD_BUCKET_ID = "5500ceff-6d51-4f33-aee4-a07e2725ddaf";
 
 function generateUniquePath(file: File, folder: string = 'files'): string {
   const uuid = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
@@ -14,14 +12,25 @@ export function getPublicFileUrl(path: string): string {
   if (!path) return '';
   if (path.startsWith('http://') || path.startsWith('https://')) return path;
   
-  const cleanPath = path.startsWith('/') ? path.substring(1) : path;
-  
-  // Verifica se o caminho já é uma URL legada antiga com o bucket antigo
-  if (cleanPath.includes('/objects/') && cleanPath.includes('5500ceff-6d51-4f33-aee4-a07e2725ddaf')) {
-     return `${CALL_API_BASE}/api/storage/v1/buckets/5500ceff-6d51-4f33-aee4-a07e2725ddaf/objects/${encodeURIComponent(cleanPath.split('/objects/')[1]?.replace('/stream', '') || '')}/stream`;
+  let cleanPath = path.startsWith('/') ? path.substring(1) : path;
+  let targetBucket = MYCLOUD_BUCKET_ID;
+
+  if (cleanPath.startsWith('legacy:')) {
+     cleanPath = cleanPath.substring(7); // remove "legacy:"
   }
   
-  return `${CALL_API_BASE}/api/storage/v1/buckets/${STREAMX_BUCKET_ID}/objects/${encodeURIComponent(cleanPath)}/stream`;
+  // Verifica se o caminho já é uma URL com um bucket
+  if (cleanPath.includes('/objects/')) {
+      const match = cleanPath.match(/\/buckets\/([^\/]+)\/objects\/(.+)/);
+      if (match) {
+          targetBucket = match[1];
+          cleanPath = match[2].replace('/stream', '');
+      } else {
+          cleanPath = cleanPath.split('/objects/')[1]?.replace('/stream', '') || cleanPath;
+      }
+  }
+  
+  return `${CALL_API_BASE}/api/storage/v1/buckets/${targetBucket}/objects/${encodeURIComponent(cleanPath)}/stream`;
 }
 
 export function getEmbedFileUrl(path: string): string {
@@ -63,7 +72,7 @@ export async function uploadMedia({ file, folder = 'files', onProgress }: Upload
 
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    const url = `${CALL_API_BASE}/api/storage/v1/buckets/${STREAMX_BUCKET_ID}/objects`;
+    const url = `${CALL_API_BASE}/api/storage/v1/buckets/${MYCLOUD_BUCKET_ID}/objects`;
     xhr.open("POST", url);
     
     const formData = new FormData();
@@ -80,14 +89,17 @@ export async function uploadMedia({ file, folder = 'files', onProgress }: Upload
         let fileId = path;
         try {
            const response = JSON.parse(xhr.responseText);
-           fileId = response.id || response.key || response.filename || response.name || path;
+           // Usar response.id conforme a instrução (id real da API)
+           if (response.id) {
+               fileId = response.id;
+           }
         } catch(e) {}
-        
-        const publicUrl = getPublicFileUrl(fileId);
+
+        const publicUrl = `${CALL_API_BASE}/api/storage/v1/buckets/${MYCLOUD_BUCKET_ID}/objects/${fileId}/stream`;
         
         const result = {
           success: true,
-          key: fileId,
+          key: fileId, // id retornado ou o path caso n retorne (mas deve retornar)
           url: publicUrl,
           mimeType: contentType,
           size: file.size,
@@ -104,11 +116,14 @@ export async function uploadMedia({ file, folder = 'files', onProgress }: Upload
         };
         resolve(result);
       } else {
-        reject(new Error(`Storage proxy error: ${xhr.statusText}`));
+        reject(new Error(`Storage proxy error: ${xhr.status} ${xhr.statusText}`));
       }
     };
     
-    xhr.onerror = () => reject(new Error("Falha na rede ou erro na proxy de upload pro servidor."));
+    xhr.onerror = () => {
+      reject(new Error("Falha na rede ou erro na proxy de upload pro servidor."));
+    };
+    
     xhr.send(formData);
   });
 }
@@ -201,9 +216,11 @@ export function getVoiceMediaUrl(path: string): string {
 
 export async function deleteFile(fileIdOrPath: string): Promise<{success: boolean}> {
   let file = fileIdOrPath;
-  let bucketId = STREAMX_BUCKET_ID;
+  let bucketId = MYCLOUD_BUCKET_ID;
   
-  if (fileIdOrPath.startsWith('http')) {
+  if (file.startsWith('legacy:')) {
+     file = file.substring(7);
+  } else if (fileIdOrPath.startsWith('http')) {
     const match = fileIdOrPath.match(/\/buckets\/([^\/]+)\/objects\/([^\/]+)\/stream/);
     if (match) {
        bucketId = match[1];
@@ -230,8 +247,8 @@ export async function deleteFile(fileIdOrPath: string): Promise<{success: boolea
   return { success: true };
 }
 
-export async function listFiles(bucket = "attachments"): Promise<any[]> {
-  const res = await fetch(`${CALL_API_BASE}/api/storage/v1/buckets/${STREAMX_BUCKET_ID}/objects`);
+export async function listFiles(): Promise<any[]> {
+  const res = await fetch(`${CALL_API_BASE}/api/storage/v1/buckets/${MYCLOUD_BUCKET_ID}/objects`);
   if (!res.ok) return [];
   const data = await res.json();
   const contents = data.objects || data.contents || data || [];
@@ -253,4 +270,5 @@ export async function mkdirFileApi(path: string): Promise<{success: boolean}> {
   return { success: true };
 }
 
-export { STREAMX_BUCKET_ID as MYCLOUD_BUCKET_ID, STREAMX_BUCKET_ID };
+export const STREAMX_BUCKET_ID = MYCLOUD_BUCKET_ID;
+
