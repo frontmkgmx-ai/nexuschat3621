@@ -344,7 +344,13 @@ async function startServer() {
         name: participantName,
       });
 
-      at.addGrant({ roomJoin: true, room: roomName, canPublish: true, canSubscribe: true });
+      at.addGrant({
+        roomJoin: true,
+        room: roomName,
+        canPublish: true,
+        canPublishData: true,
+        canSubscribe: true,
+      });
 
       const token = await at.toJwt();
       
