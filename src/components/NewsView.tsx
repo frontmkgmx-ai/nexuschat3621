@@ -110,9 +110,11 @@ export default function NewsView() {
       transition={{ duration: 0.2 }}
       className="flex flex-col h-full absolute inset-0 w-full pt-4 bg-[#111214]"
     >
-      <div className="px-5 py-4 shrink-0 border-b border-[#2B2D31]">
-        <h2 className="text-2xl font-bold text-zinc-100 tracking-tight">Changelog <span className="text-sm font-normal text-zinc-500 bg-[#2B2D31] px-2 py-0.5 rounded-full">v1.1.32</span></h2>
-        <p className="text-zinc-500 text-sm mt-1">Acompanhe as últimas melhorias e correções.</p>
+      <div className="pt-2 pb-3 px-5 shrink-0 bg-[#111214]/90 backdrop-blur-md sticky top-0 z-10 border-b border-transparent">
+        <h2 className="text-3xl font-display font-extrabold text-zinc-100 tracking-tight leading-none flex items-center gap-2">
+          Changelog <span className="text-sm font-semibold text-zinc-400 bg-zinc-800/60 px-2.5 py-0.5 rounded-full mt-1">v1.1.32</span>
+        </h2>
+        <p className="text-zinc-500 text-[13px] mt-2 font-medium">Acompanhe as últimas melhorias e correções.</p>
       </div>
       
       <div className="flex-1 overflow-y-auto custom-scrollbar pb-20 px-5 pt-8 space-y-8">

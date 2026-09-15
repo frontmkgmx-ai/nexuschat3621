@@ -163,11 +163,11 @@ export default function Inpage({ currentUser }: { currentUser: any }) {
       className="flex flex-col h-full absolute inset-0 w-full pt-4 bg-zinc-900 overflow-hidden"
       style={{ WebkitTransform: "translate3d(0,0,0)", transform: "translate3d(0,0,0)" }}
     >
-      <div className="px-5 py-4 shrink-0 mt-2 md:mt-0 border-b border-zinc-800/50 flex items-center justify-between z-10 bg-zinc-900/50 backdrop-blur-md">
-        <h2 className="text-2xl font-display font-bold text-zinc-100 tracking-tight">Status</h2>
+      <div className="pt-2 pb-3 px-5 shrink-0 flex items-end justify-between bg-zinc-900/90 backdrop-blur-md sticky top-0 z-10 border-b border-transparent mt-2 md:mt-0">
+        <h2 className="text-3xl font-display font-extrabold text-zinc-100 tracking-tight leading-none">Status</h2>
         <button 
           onClick={() => setIsModalOpen(true)}
-          className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-full p-2 transition-all active:scale-95 shadow-lg shadow-indigo-500/20"
+          className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-full w-8 h-8 flex items-center justify-center transition-all active:scale-95 shadow-lg shadow-indigo-500/20 mb-0.5"
         >
           <Plus className="w-5 h-5" />
         </button>
@@ -246,6 +246,7 @@ export default function Inpage({ currentUser }: { currentUser: any }) {
           <CreateStatusModal 
             onClose={() => setIsModalOpen(false)} 
             onPublish={handlePublish}
+            currentUser={currentUser}
           />
         )}
         

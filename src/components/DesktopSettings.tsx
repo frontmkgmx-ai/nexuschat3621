@@ -19,13 +19,13 @@ export default function DesktopSettings({ onLogout }: { onLogout: () => void }) 
 
   return (
     <div className="flex-1 flex flex-col h-full bg-[#111214]">
-      <div className="flex items-center gap-3 px-6 py-6 border-b border-zinc-800/80 bg-[#111214] sticky top-0 z-10">
+      <div className="pt-2 pb-3 px-6 shrink-0 flex items-end gap-3 bg-[#111214]/90 backdrop-blur-md sticky top-0 z-10 border-b border-transparent mt-2 md:mt-0">
         {view !== "MENU" && (
-          <button onClick={() => setView("MENU")} className="p-2 hover:bg-zinc-800 rounded-full transition-colors">
-            <ArrowLeft className="w-5 h-5 text-zinc-400" />
+          <button onClick={() => setView("MENU")} className="w-8 h-8 hover:bg-zinc-800 rounded-full flex items-center justify-center transition-colors mb-0.5">
+            <ArrowLeft className="w-5 h-5 text-indigo-400" />
           </button>
         )}
-        <h2 className="text-2xl font-display font-bold text-zinc-100 tracking-tight">
+        <h2 className="text-3xl font-display font-extrabold text-zinc-100 tracking-tight leading-none">
           {view === "MENU" ? "Configurações (Windows)" :
            view === "GENERAL" ? "Geral & Sistema" :
            view === "NOTIFICATIONS" ? "Notificações Nativas" :

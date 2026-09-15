@@ -9,6 +9,10 @@ import { getCroppedImg } from "../lib/cropImage";
 interface CreateStatusModalProps {
   onClose: () => void;
   onPublish: (data: any) => void;
+  currentUser: {
+    _id: string;
+    [key: string]: unknown;
+  };
 }
 
 const COLORS = [
@@ -21,7 +25,7 @@ const COLORS = [
   "bg-zinc-800"
 ];
 
-export default function CreateStatusModal({ onClose, onPublish }: CreateStatusModalProps) {
+export default function CreateStatusModal({ onClose, onPublish, currentUser }: CreateStatusModalProps) {
   const [text, setText] = useState("");
   const [bgColor, setBgColor] = useState(COLORS[0]);
   const [mediaFile, setMediaFile] = useState<File | null>(null);
@@ -89,10 +93,15 @@ export default function CreateStatusModal({ onClose, onPublish }: CreateStatusMo
   };
 
   const handlePublishClick = async () => {
+    if (!currentUser?._id) {
+      toast.error("Usuário não autenticado");
+      return;
+    }
+
     if (mediaFile) {
       setIsUploading(true);
       try {
-        const statusId = Date.now().toString();
+        const statusId = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString();
         const response = await uploadStatusMedia({ userId: currentUser._id, statusId, file: mediaFile, onProgress: (progress) => {
           setUploadProgress(progress);
         }});

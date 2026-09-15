@@ -794,31 +794,33 @@ export default function Sidebar({
               transition={{ duration: 0.2 }}
               className="flex flex-col h-full absolute inset-0 w-full"
             >
-              <div className="px-5 py-4 shrink-0 mt-2 md:mt-0 flex justify-between items-center">
-                <h2 className="text-2xl font-display font-bold text-zinc-100 tracking-tight">{showArchived ? "Arquivados" : "Messages"}</h2>
-                <div className="flex items-center gap-1">
-                  <button 
-                    onClick={() => {
-                      navigator.clipboard.writeText(window.location.origin);
-                      toast.success("Link de convite copiado!");
-                    }} 
-                    className="p-2 rounded-full transition-colors text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800"
-                    title="Copiar link de convite"
-                  >
-                     <Link2 className="w-5 h-5" />
-                  </button>
-                  <button onClick={() => setShowArchived(!showArchived)} className={`p-2 rounded-full transition-colors ${showArchived ? 'bg-indigo-500 text-white' : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800'}`}>
-                     <Archive className="w-5 h-5" />
-                  </button>
+              <div className="pt-6 pb-3 px-5 shrink-0 flex flex-col gap-3 bg-zinc-900/90 backdrop-blur-md sticky top-0 z-10">
+                <div className="flex justify-between items-end">
+                  <h2 className="text-3xl font-display font-extrabold text-zinc-100 tracking-tight leading-none">
+                    {showArchived ? "Arquivados" : "Messages"}
+                  </h2>
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <button 
+                      onClick={() => {
+                        navigator.clipboard.writeText(window.location.origin);
+                        toast.success("Link de convite copiado!");
+                      }} 
+                      className="w-8 h-8 flex items-center justify-center rounded-full bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 transition-colors"
+                      title="Copiar link de convite"
+                    >
+                       <Link2 className="w-4 h-4" />
+                    </button>
+                    <button onClick={() => setShowArchived(!showArchived)} className={`w-8 h-8 flex items-center justify-center rounded-full transition-colors ${showArchived ? 'bg-indigo-500 text-white shadow-md shadow-indigo-500/20' : 'bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20'}`}>
+                       <Archive className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
-              </div>
-              <div className="px-4 pb-3 shrink-0">
-                <div className="bg-zinc-950/50 flex items-center px-4 rounded-xl h-11 border border-zinc-800/80 focus-within:border-indigo-500/50 focus-within:bg-zinc-950 transition-all shadow-inner">
-                  <Search className="w-4 h-4 text-zinc-500 mr-3" />
+                <div className="bg-zinc-950/60 flex items-center px-3 rounded-lg h-9 border border-zinc-800/80 focus-within:border-indigo-500/50 focus-within:bg-zinc-950 transition-all mt-1 shadow-inner">
+                  <Search className="w-4 h-4 text-zinc-500 mr-2" />
                   <input
                     type="text"
-                    placeholder="Search messages..."
-                    className="bg-transparent border-none focus:outline-none w-full text-sm text-zinc-200 placeholder-zinc-500"
+                    placeholder="Search"
+                    className="bg-transparent border-none focus:outline-none w-full text-[15px] text-zinc-200 placeholder-zinc-500"
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                   />
@@ -997,101 +999,103 @@ export default function Sidebar({
             >
               {!showAddContact ? (
                  <>
-                  <div className="px-5 py-4 shrink-0 flex items-center justify-between mt-2 md:mt-0">
-                    <h2 className="text-2xl font-display font-bold text-zinc-100 tracking-tight">Contatos</h2>
-                    <div className="flex gap-2">
-                      <button 
-                        onClick={async () => {
-                           try {
-                              setIsSyncingContacts(true);
-                              
-                              const provider = new GoogleAuthProvider();
-                              provider.addScope('https://www.googleapis.com/auth/contacts.readonly');
-                              const result = await signInWithPopup(auth, provider);
-                              
-                              const credential = GoogleAuthProvider.credentialFromResult(result);
-                              const token = credential?.accessToken;
-                              
-                              if (!token) {
-                                 throw new Error("Não foi possível obter o token de acesso de contatos do Google.");
-                              }
+                  <div className="pt-6 pb-3 px-5 shrink-0 flex flex-col gap-3 bg-zinc-900/90 backdrop-blur-md sticky top-0 z-10">
+                    <div className="flex justify-between items-end">
+                      <h2 className="text-3xl font-display font-extrabold text-zinc-100 tracking-tight leading-none">
+                        Contatos
+                      </h2>
+                      <div className="flex gap-2 mb-0.5">
+                        <button 
+                          onClick={async () => {
+                             try {
+                                setIsSyncingContacts(true);
+                                
+                                const provider = new GoogleAuthProvider();
+                                provider.addScope('https://www.googleapis.com/auth/contacts.readonly');
+                                const result = await signInWithPopup(auth, provider);
+                                
+                                const credential = GoogleAuthProvider.credentialFromResult(result);
+                                const token = credential?.accessToken;
+                                
+                                if (!token) {
+                                   throw new Error("Não foi possível obter o token de acesso de contatos do Google.");
+                                }
 
-                              const res = await fetch("https://people.googleapis.com/v1/people/me/connections?personFields=names,emailAddresses,phoneNumbers&pageSize=1000", {
-                                 headers: {
-                                    "Authorization": `Bearer ${token}`,
-                                    "Accept": "application/json"
-                                 }
-                              });
-                              
-                              if (!res.ok) {
-                                 const errData = await res.json().catch(() => null);
-                                 let errMsg = "Erro ao sincronizar contatos na API";
-                                 if (errData && errData.error) {
-                                    const errDetails = typeof errData.error === 'string' ? errData.error : JSON.stringify(errData.error);
-                                    console.error("Erro completo da People API:", errDetails);
-                                    
-                                    if (errDetails.includes("403") || errDetails.includes("not enabled")) {
-                                       errMsg = "A 'People API' não está ativada no projeto correto do Google Cloud (projeto 931423602853). Clique no link nos logs do console ou verifique o projeto correto e ative-a. Se já ativou, pode demorar até 10 minutos para funcionar.";
-                                    } else {
-                                       errMsg += ". Verifique o console do navegador para mais detalhes.";
-                                    }
-                                 }
-                                 throw new Error(errMsg);
-                              }
-                              
-                              const data = await res.json();
-                              if (data && data.connections) {
-                                 let addedCount = 0;
-                                 for (const person of data.connections) {
-                                    const name = person.names?.[0]?.displayName || "";
-                                    const email = person.emailAddresses?.[0]?.value || "";
-                                    let phone = person.phoneNumbers?.[0]?.value || "";
-                                    
-                                    if (!name && !email && !phone) continue;
-                                    if (phone) phone = phone.replace(/[^0-9+]/g, '');
-                                    
-                                    const exists = contacts.find((c: any) => (phone && c.phoneNumber === phone) || (email && c.email === email));
-                                    if (!exists) {
-                                       await addDoc(collection(db, "users", currentUser._id, "contacts"), {
-                                           name: name || email || phone,
-                                           phoneNumber: phone,
-                                           email: email,
-                                           registeredUserId: null, 
-                                           createdAt: Date.now()
-                                       });
-                                       addedCount++;
-                                    }
-                                 }
-                                 toast.success(`${addedCount} contatos Google sincronizados com sucesso.`);
-                              } else {
-                                 toast.error("Nenhum contato encontrado no Google.");
-                              }
+                                const res = await fetch("https://people.googleapis.com/v1/people/me/connections?personFields=names,emailAddresses,phoneNumbers&pageSize=1000", {
+                                   headers: {
+                                      "Authorization": `Bearer ${token}`,
+                                      "Accept": "application/json"
+                                   }
+                                });
+                                
+                                if (!res.ok) {
+                                   const errData = await res.json().catch(() => null);
+                                   let errMsg = "Erro ao sincronizar contatos na API";
+                                   if (errData && errData.error) {
+                                      const errDetails = typeof errData.error === 'string' ? errData.error : JSON.stringify(errData.error);
+                                      console.error("Erro completo da People API:", errDetails);
+                                      
+                                      if (errDetails.includes("403") || errDetails.includes("not enabled")) {
+                                         errMsg = "A 'People API' não está ativada no projeto correto do Google Cloud (projeto 931423602853). Clique no link nos logs do console ou verifique o projeto correto e ative-a. Se já ativou, pode demorar até 10 minutos para funcionar.";
+                                      } else {
+                                         errMsg += ". Verifique o console do navegador para mais detalhes.";
+                                      }
+                                   }
+                                   throw new Error(errMsg);
+                                }
+                                
+                                const data = await res.json();
+                                if (data && data.connections) {
+                                   let addedCount = 0;
+                                   for (const person of data.connections) {
+                                      const name = person.names?.[0]?.displayName || "";
+                                      const email = person.emailAddresses?.[0]?.value || "";
+                                      let phone = person.phoneNumbers?.[0]?.value || "";
+                                      
+                                      if (!name && !email && !phone) continue;
+                                      if (phone) phone = phone.replace(/[^0-9+]/g, '');
+                                      
+                                      const exists = contacts.find((c: any) => (phone && c.phoneNumber === phone) || (email && c.email === email));
+                                      if (!exists) {
+                                         await addDoc(collection(db, "users", currentUser._id, "contacts"), {
+                                             name: name || email || phone,
+                                             phoneNumber: phone,
+                                             email: email,
+                                             registeredUserId: null, 
+                                             createdAt: Date.now()
+                                         });
+                                         addedCount++;
+                                      }
+                                   }
+                                   toast.success(`${addedCount} contatos Google sincronizados com sucesso.`);
+                                } else {
+                                   toast.error("Nenhum contato encontrado no Google.");
+                                }
 
-                           } catch(e: any) {
-                              toast.error("Erro ao iniciar sincronização: " + e.message);
-                              setIsSyncingContacts(false);
-                           }
-                        }}
-                        className="w-8 h-8 rounded-full bg-blue-600/20 text-blue-400 flex items-center justify-center hover:bg-blue-500 hover:text-white transition-all shadow-sm"
-                        title="Sincronizar Google Workspace"
-                      >
-                        {isSyncingContacts ? <Loader2 className="w-4 h-4 animate-spin" /> : <svg className="w-4 h-4" viewBox="0 0 24 24"><path fill="currentColor" d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z"/></svg>}
-                      </button>
-                      <button 
-                        onClick={() => setShowAddContact(true)}
-                        className="w-8 h-8 rounded-full bg-indigo-600/20 text-indigo-400 flex items-center justify-center hover:bg-indigo-500 hover:text-white transition-all shadow-sm"
-                      >
-                        <UserPlus className="w-4 h-4" />
-                      </button>
+                             } catch(e: any) {
+                                toast.error("Erro ao iniciar sincronização: " + e.message);
+                                setIsSyncingContacts(false);
+                             }
+                          }}
+                          className="w-8 h-8 rounded-full bg-blue-600/10 text-blue-400 flex items-center justify-center hover:bg-blue-600/20 transition-all"
+                          title="Sincronizar Google Workspace"
+                        >
+                          {isSyncingContacts ? <Loader2 className="w-4 h-4 animate-spin" /> : <svg className="w-4 h-4" viewBox="0 0 24 24"><path fill="currentColor" d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z"/></svg>}
+                        </button>
+                        <button 
+                          onClick={() => setShowAddContact(true)}
+                          className="w-8 h-8 rounded-full bg-indigo-600/10 text-indigo-400 flex items-center justify-center hover:bg-indigo-600/20 transition-all"
+                        >
+                          <UserPlus className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                  <div className="px-4 pb-3 shrink-0">
-                    <div className="bg-zinc-950/50 flex items-center px-4 rounded-xl h-11 border border-zinc-800/80 focus-within:border-indigo-500/50 focus-within:bg-zinc-950 transition-all shadow-inner">
-                      <Search className="w-4 h-4 text-zinc-500 mr-3" />
+                    <div className="bg-zinc-950/60 flex items-center px-3 rounded-lg h-9 border border-zinc-800/80 focus-within:border-indigo-500/50 focus-within:bg-zinc-950 transition-all mt-1 shadow-inner">
+                      <Search className="w-4 h-4 text-zinc-500 mr-2" />
                       <input
                         type="text"
                         placeholder="Pesquisar contatos..."
-                        className="bg-transparent border-none focus:outline-none w-full text-sm text-zinc-200 placeholder-zinc-500"
+                        className="bg-transparent border-none focus:outline-none w-full text-[15px] text-zinc-200 placeholder-zinc-500"
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                       />
@@ -1397,13 +1401,13 @@ export default function Sidebar({
               transition={{ duration: 0.2 }}
               className="flex flex-col h-full absolute inset-0 w-full pt-4 bg-zinc-900"
             >
-              <div className="px-5 py-4 shrink-0 mt-2 md:mt-0 border-b border-zinc-800/50 flex items-center gap-3">
+              <div className="pt-2 pb-3 px-5 shrink-0 mt-2 md:mt-0 bg-zinc-900/90 backdrop-blur-md sticky top-0 z-10 border-b border-transparent flex items-end gap-3">
                 {settingsView !== "MENU" && (
-                  <button onClick={() => setSettingsView("MENU")} className="p-2 hover:bg-zinc-800 rounded-full transition-colors">
-                    <ArrowLeft className="w-5 h-5 text-zinc-400" />
+                  <button onClick={() => setSettingsView("MENU")} className="w-8 h-8 hover:bg-zinc-800 rounded-full flex items-center justify-center transition-colors mb-0.5">
+                    <ArrowLeft className="w-5 h-5 text-indigo-400" />
                   </button>
                 )}
-                <h2 className="text-2xl font-display font-bold text-zinc-100 tracking-tight">
+                <h2 className="text-3xl font-display font-extrabold text-zinc-100 tracking-tight leading-none">
                   {settingsView === "MENU" ? "Configurações" :
                    settingsView === "ACCOUNT" ? "Conta" :
                    settingsView === "PRIVACY" ? "Privacidade" :
