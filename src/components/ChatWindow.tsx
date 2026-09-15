@@ -242,7 +242,7 @@ const MessageBubble = React.memo(({
                         </div>
                      </div>
                    ) : msg.type === "voice" ? (
-                     <VoiceMessageBubble mediaUrl={msg.mediaUrl} durationSeconds={msg.durationSeconds} isMine={isMine} />
+                     <VoiceMessageBubble mediaUrl={msg.mediaUrl} durationSeconds={msg.durationSeconds} mimeType={msg.mimeType || msg.file?.mimeType} isMine={isMine} />
                    ) : (
                      <MessageFilePreview message={msg} />
                    )}

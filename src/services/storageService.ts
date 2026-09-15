@@ -194,9 +194,11 @@ export async function uploadVoiceToStorage(conversationId: string, messageId: st
   const uuid = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
   const fileType = blob.type || 'audio/webm;codecs=opus';
   let ext = 'webm';
-  if (fileType.includes('mp4')) ext = 'm4a';
+  if (fileType.includes('mp4') || fileType.includes('m4a')) ext = 'm4a';
   else if (fileType.includes('aac')) ext = 'aac';
-  else if (fileType.includes('mpeg')) ext = 'mp3';
+  else if (fileType.includes('ogg')) ext = 'ogg';
+  else if (fileType.includes('mpeg') || fileType.includes('mp3')) ext = 'mp3';
+  else if (fileType.includes('wav')) ext = 'wav';
   
   const file = new File([blob], `voice-${uuid}.${ext}`, { type: fileType });
   const result = await uploadMedia({ file, folder: `chats/${conversationId}/${messageId || Date.now()}/audio`, onProgress });
@@ -205,7 +207,7 @@ export async function uploadVoiceToStorage(conversationId: string, messageId: st
      path: result.key,
      url: result.url,
      size: result.size,
-     mimeType: result.mimeType,
+     mimeType: result.mimeType || fileType,
      file: result.file
   };
 }

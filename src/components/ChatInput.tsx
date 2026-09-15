@@ -6,6 +6,8 @@ import { ref, set } from "firebase/database";
 import { uploadChatImage, uploadChatVideo, uploadChatAudio, uploadChatDocument, uploadGroupImage, uploadGroupVideo, uploadGroupAudio, uploadGroupDocument, uploadVoiceToStorage } from "../services/storageService";
 import EmojiPicker, { Theme } from "emoji-picker-react";
 import { toast } from "sonner";
+import { getVoiceMediaConstraints, getSupportedAudioMimeType, logNonSensitiveAudioTrackDiagnostics, getAccurateAudioDuration } from "../utils/audioUtils";
+import { DEFAULT_AUDIO_RECORDING_POLICY, DEFAULT_AUDIO_LIMITS } from "../types/audio";
 
 export default function ChatInput({ 
   currentUser, 
@@ -37,23 +39,66 @@ export default function ChatInput({
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const maxDurationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isCancelledRef = useRef(false);
+  const isProcessingStopRef = useRef(false);
+  const recordingStartedAtRef = useRef<number | null>(null);
+  const recordingStoppedAtRef = useRef<number | null>(null);
+
+  const cleanupRecordingState = () => {
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
+    if (maxDurationTimeoutRef.current) {
+      clearTimeout(maxDurationTimeoutRef.current);
+      maxDurationTimeoutRef.current = null;
+    }
+    recordingStartedAtRef.current = null;
+    recordingStoppedAtRef.current = null;
+    audioChunksRef.current = [];
+    isProcessingStopRef.current = false;
+    setRecordSeconds(0);
+    setIsRecording(false);
+  };
 
   const startVoiceRecording = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const audioConstraints = getVoiceMediaConstraints();
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
+      
+      // Registrar metadados não sensíveis em ambiente de desenvolvimento
+      logNonSensitiveAudioTrackDiagnostics(stream);
+
       audioChunksRef.current = [];
       isCancelledRef.current = false;
+      isProcessingStopRef.current = false;
 
-      let options: MediaRecorderOptions = {};
-      if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
-        options = { mimeType: 'audio/webm;codecs=opus' };
-      } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
-        options = { mimeType: 'audio/mp4' };
+      // Selecionar MIME suportado com base nos requisitos
+      const selection = getSupportedAudioMimeType();
+      if (!selection.mimeType && typeof MediaRecorder !== 'undefined') {
+        toast.error("Formato de áudio não suportado neste navegador.");
+        stream.getTracks().forEach(t => t.stop());
+        return;
       }
 
-      const recorder = new MediaRecorder(stream, options);
+      const recorderOptions: MediaRecorderOptions = {
+        audioBitsPerSecond: DEFAULT_AUDIO_RECORDING_POLICY.targetBitrate
+      };
+      if (selection.mimeType) {
+        recorderOptions.mimeType = selection.mimeType;
+      }
+
+      let recorder: MediaRecorder;
+      try {
+        recorder = new MediaRecorder(stream, recorderOptions);
+      } catch (err) {
+        // Fallback defensivo sem audioBitsPerSecond se o navegador rejeitar opções combinadas
+        recorder = selection.mimeType ? new MediaRecorder(stream, { mimeType: selection.mimeType }) : new MediaRecorder(stream);
+      }
+
       mediaRecorderRef.current = recorder;
+      const actualMimeType = recorder.mimeType || selection.mimeType || 'audio/webm;codecs=opus';
 
       recorder.ondataavailable = (e) => {
         if (e.data && e.data.size > 0) {
@@ -62,29 +107,38 @@ export default function ChatInput({
       };
 
       recorder.onstop = async () => {
+        // Impedir execuções concorrentes de onstop
+        if (isProcessingStopRef.current) return;
+        isProcessingStopRef.current = true;
+
         stream.getTracks().forEach(track => track.stop());
         if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+        if (maxDurationTimeoutRef.current) clearTimeout(maxDurationTimeoutRef.current);
+
+        recordingStoppedAtRef.current = performance.now();
+        const monotonicElapsedSeconds = recordingStartedAtRef.current != null
+          ? (recordingStoppedAtRef.current - recordingStartedAtRef.current) / 1000
+          : 0;
 
         if (isCancelledRef.current) {
-          audioChunksRef.current = [];
-          setRecordSeconds(0);
-          setIsRecording(false);
+          cleanupRecordingState();
           return;
         }
 
-        const audioBlob = new Blob(audioChunksRef.current, { type: recorder.mimeType || 'audio/webm' });
+        const audioBlob = new Blob(audioChunksRef.current, { type: actualMimeType });
         audioChunksRef.current = [];
 
-        if (recordSeconds < 1 && audioBlob.size < 1000) {
+        // Validar limites mínimos
+        if (monotonicElapsedSeconds < DEFAULT_AUDIO_LIMITS.minDurationSeconds || audioBlob.size === 0) {
           toast.info("Gravação muito curta");
-          setRecordSeconds(0);
-          setIsRecording(false);
+          cleanupRecordingState();
           return;
         }
 
-        const duration = recordSeconds || 1;
-        setRecordSeconds(0);
-        setIsRecording(false);
+        // Calcular duração real decodificada com fallback para o relógio monotônico
+        const { durationSeconds, durationSource } = await getAccurateAudioDuration(audioBlob, monotonicElapsedSeconds);
+
+        cleanupRecordingState();
 
         const messageId = crypto.randomUUID();
         const placeholderMsg = {
@@ -93,7 +147,11 @@ export default function ChatInput({
           senderId: currentUser._id,
           type: "voice",
           status: "uploading",
-          durationSeconds: duration,
+          durationSeconds: durationSeconds,
+          durationSource: durationSource,
+          mimeType: actualMimeType,
+          codec: selection.codec,
+          sizeBytes: audioBlob.size,
           _creationTime: Date.now()
         };
 
@@ -108,7 +166,12 @@ export default function ChatInput({
           await updateDoc(doc(db, "messages", messageId), {
             mediaUrl: result.url,
             file: result.file,
-            status: "sent"
+            status: "sent",
+            durationSeconds: durationSeconds,
+            durationSource: durationSource,
+            mimeType: result.mimeType || actualMimeType,
+            codec: selection.codec,
+            sizeBytes: result.size
           });
 
           await updateDoc(doc(db, "conversations", conversation._id), {
@@ -126,29 +189,54 @@ export default function ChatInput({
         }
       };
 
+      // Iniciar captura com marcação monotônica precisa
+      recordingStartedAtRef.current = performance.now();
       recorder.start(200);
       setIsRecording(true);
       setRecordSeconds(0);
+
+      // Timer apenas para atualização visual da UI
       recordingTimerRef.current = setInterval(() => {
-        setRecordSeconds(prev => prev + 1);
-      }, 1000);
-    } catch (err) {
+        if (recordingStartedAtRef.current != null) {
+          const sec = Math.floor((performance.now() - recordingStartedAtRef.current) / 1000);
+          setRecordSeconds(sec);
+        }
+      }, 500);
+
+      // Limite máximo de gravação automático (ex: 10 minutos)
+      maxDurationTimeoutRef.current = setTimeout(() => {
+        toast.info("Limite máximo de gravação atingido");
+        stopAndSendVoice();
+      }, DEFAULT_AUDIO_LIMITS.maxDurationSeconds * 1000);
+
+    } catch (err: any) {
       console.error("Microphone access error:", err);
       toast.error("Não foi possível acessar o microfone. Verifique as permissões.");
+      cleanupRecordingState();
     }
   };
 
   const stopAndSendVoice = () => {
     isCancelledRef.current = false;
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
-      mediaRecorderRef.current.stop();
+      try {
+        mediaRecorderRef.current.stop();
+      } catch (e) {
+        cleanupRecordingState();
+      }
     }
   };
 
   const cancelVoice = () => {
     isCancelledRef.current = true;
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
-      mediaRecorderRef.current.stop();
+      try {
+        mediaRecorderRef.current.stop();
+      } catch (e) {
+        cleanupRecordingState();
+      }
+    } else {
+      cleanupRecordingState();
     }
   };
 
