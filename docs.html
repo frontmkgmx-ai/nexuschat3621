@@ -1,15 +1,110 @@
-<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Nexus Calls API Docs</title><style>body{font-family:Inter,system-ui,Arial;margin:0;background:#0b1020;color:#eef2ff}main{max-width:980px;margin:auto;padding:24px}.card{background:#121a33;border:1px solid #263456;border-radius:18px;padding:18px;margin:16px 0;box-shadow:0 16px 40px #0004}code,pre{background:#060913;border:1px solid #263456;border-radius:12px;padding:12px;display:block;overflow:auto;color:#b9f6ca}.pill{display:inline-block;background:#24345e;padding:6px 10px;border-radius:999px;margin:4px}h1,h2{color:#fff}button{border:0;border-radius:10px;padding:10px 12px;background:#6d5dfc;color:white;font-weight:700;cursor:pointer}</style></head><body><main><h1>Nexus Calls API</h1><p>API HTTP + Socket.IO para chamadas 1v1, voz em grupo, video em grupo, compartilhamento de tela, eventos de midia e sinalizacao WebRTC.</p><div class="card"><h2>Base URL</h2><pre id="base">https://call.ironvalecraft.shop</pre><button onclick="navigator.clipboard.writeText(document.getElementById('base').innerText)">Copiar</button></div><div class="card"><h2>Rotas HTTP</h2><span class="pill">GET /health</span><span class="pill">GET /config/public</span><span class="pill">GET /rooms</span><span class="pill">POST /rooms</span><span class="pill">GET /rooms/:roomId</span><span class="pill">PATCH /rooms/:roomId</span><span class="pill">DELETE /rooms/:roomId</span></div><div class="card"><h2>Eventos Socket.IO</h2><pre>join-room, leave-room, webrtc-offer, webrtc-answer, webrtc-ice-candidate, media-state, screen-share-start, screen-share-stop, voice-activity, room-message, reaction, participant-joined, participant-left</pre></div><div class="card"><h2>Exemplo frontend</h2><pre id="client">import { io } from 'socket.io-client';
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Nexus Calls & WebRTC Docs</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; background: #0b1020; color: #eef2ff; line-height: 1.6; }
+    main { max-width: 1040px; margin: auto; padding: 32px 20px; }
+    .badge { display: inline-block; padding: 4px 12px; border-radius: 9999px; font-size: 12px; font-weight: bold; text-transform: uppercase; margin-bottom: 8px; }
+    .badge-official { background: #10b981; color: #022c22; }
+    .badge-legacy { background: #64748b; color: #f8fafc; }
+    .card { background: #121a33; border: 1px solid #263456; border-radius: 16px; padding: 20px; margin: 20px 0; box-shadow: 0 16px 40px rgba(0,0,0,0.35); }
+    code, pre { background: #060913; border: 1px solid #263456; border-radius: 10px; padding: 14px; display: block; overflow: auto; color: #a7f3d0; font-family: monospace; font-size: 13px; }
+    .pill { display: inline-block; background: #24345e; color: #93c5fd; padding: 6px 12px; border-radius: 999px; margin: 4px 6px 4px 0; font-size: 13px; font-family: monospace; }
+    h1, h2, h3 { color: #fff; margin-top: 0; }
+    table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+    th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid #263456; }
+    th { color: #93c5fd; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; }
+    td { font-size: 14px; color: #cbd5e1; }
+    button { border: 0; border-radius: 8px; padding: 8px 14px; background: #6366f1; color: white; font-weight: 600; cursor: pointer; transition: background 0.2s; }
+    button:hover { background: #4f46e5; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Nexus WebRTC & Calls Specification</h1>
+    <p>Documentação arquitetural de sinalização WebRTC para voz, vídeo 1v1, grupos e compartilhamento de tela com áudio.</p>
 
-const socket = io('https://call.ironvalecraft.shop', { path: '/socket.io', transports: ['websocket', 'polling'] });
+    <!-- Oficial Architecture -->
+    <div class="card" style="border-left: 4px solid #10b981;">
+      <span class="badge badge-official">Arquitetura Oficial de Produção</span>
+      <h2>Sinalização via Firebase Realtime Database (RTDB)</h2>
+      <p>A arquitetura oficial de sinalização do Nexus Chat utiliza o <strong>Firebase Realtime Database</strong>. Todas as ofertas, respostas, candidatos ICE e estados de presença são gerenciados de forma determinística e com limpeza automática de desconexão (<code>onDisconnect</code>).</p>
 
-socket.emit('join-room', {
-  roomId: 'chat_123',
-  userId: 'user_123',
-  displayName: 'Rafael',
-  media: { audio: true, video: true, screen: false }
-});
+      <h3>Estrutura de Paths no Realtime Database:</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Caminho (Path)</th>
+            <th>Tipo de Dado</th>
+            <th>Descrição e Ciclo de Vida</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>webrtc/{callId}/participants/{userId}</code></td>
+            <td><code>number (timestamp)</code></td>
+            <td>Presença do participante na chamada. Configurado com <code>onDisconnect().remove()</code>.</td>
+          </tr>
+          <tr>
+            <td><code>webrtc/{callId}/signals/{targetUserId}/{pushId}</code></td>
+            <td><code>{ sender, type, payload, timestamp }</code></td>
+            <td>Fila determinística de sinais para o participante alvo (<code>offer</code>, <code>answer</code>, <code>ice-candidate</code>). Removido após consumo.</td>
+          </tr>
+          <tr>
+            <td><code>webrtc/{callId}/screenShares/{userId}</code></td>
+            <td><code>boolean</code></td>
+            <td>Status ativo de compartilhamento de tela do participante. Removido na interrupção ou desconexão.</td>
+          </tr>
+          <tr>
+            <td><code>conversations/{callId}/callStatus</code></td>
+            <td><code>{ active: boolean, participants }</code></td>
+            <td>Controle de chamada ativa no nível da conversa para alertas e badges na lista de chats.</td>
+          </tr>
+        </tbody>
+      </table>
 
-socket.on('participant-joined', data => console.log(data));
+      <h3>Configuração Dinâmica de ICE / TURN:</h3>
+      <p>O cliente obtém as credenciais e servidores ICE via backend seguro na rota <code>GET /api/webrtc/config</code>, evitando expor senhas permanentes de TURN no bundle da aplicação.</p>
+      <pre>GET /api/webrtc/config
+Retorno:
+{
+  "success": true,
+  "iceServers": [
+    { "urls": ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302", "stun:stun.cloudflare.com:3478"] },
+    { "urls": "turn:turn.domain.com:3478", "username": "user", "credential": "secret" }
+  ],
+  "signalingTransport": "firebase-rtdb"
+}</pre>
+    </div>
 
-socket.emit('webrtc-offer', { roomId: 'chat_123', targetUserId: 'user_456', offer });
-socket.on('webrtc-offer', async ({ fromUserId, offer }) => { /* criar answer */ });</pre><button onclick="navigator.clipboard.writeText(document.getElementById('client').innerText)">Copiar para AI</button></div></main></body></html>
+    <!-- Regras e Fila de ICE -->
+    <div class="card">
+      <h2>Protocolo de Negociação e Fila de ICE</h2>
+      <ul>
+        <li><strong>Fila de Candidatos ICE:</strong> Se um candidato ICE for recebido antes da conclusão de <code>setRemoteDescription</code>, ele é armazenado em <code>pendingCandidatesRef</code> e descarregado em ordem estrita após o estabelecimento da descrição remota.</li>
+        <li><strong>Desduplicação de ICE:</strong> Candidatos idênticos são filtrados com hash determinístico (<code>candidate + sdpMid + sdpMLineIndex</code>) antes de invocar <code>addIceCandidate</code>.</li>
+        <li><strong>Papéis na Negociação:</strong> Peer polido implementado com base na comparação determinística dos identificadores (<code>localUserId &lt; remoteUserId</code>).</li>
+        <li><strong>Resolução de Conexão:</strong> <code>isConnected</code> é ativado unicamente após <code>connectionState === 'connected'</code> ou <code>iceConnectionState === 'connected' | 'completed'</code> com faixas remotas ativas.</li>
+      </ul>
+    </div>
+
+    <!-- Legacy Socket.IO -->
+    <div class="card" style="opacity: 0.85;">
+      <span class="badge badge-legacy">Legado / Compatibilidade</span>
+      <h2>Servidor Socket.IO (Opcional / Fallback)</h2>
+      <p>O servidor backend inclui listeners Socket.IO para compatibilidade com versões antigas ou integrações externas em <code>https://call.ironvalecraft.shop</code>.</p>
+      <div style="margin-top: 8px;">
+        <span class="pill">join-room</span>
+        <span class="pill">leave-room</span>
+        <span class="pill">webrtc-offer</span>
+        <span class="pill">webrtc-answer</span>
+        <span class="pill">webrtc-ice-candidate</span>
+        <span class="pill">media-state</span>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

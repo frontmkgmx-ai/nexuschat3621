@@ -6,7 +6,15 @@ if (import.meta.env.DEV) {
   }
 }
 
-const makeRequest = async (endpoint: string, method: 'GET' | 'POST' = 'GET', body?: any) => {
+export interface ApiResponse<T = any> {
+  ok: boolean;
+  status: number;
+  data?: T;
+  error?: string;
+  [key: string]: any;
+}
+
+const makeRequest = async (endpoint: string, method: 'GET' | 'POST' = 'GET', body?: any): Promise<ApiResponse> => {
   const url = `${CALL_API_BASE}${endpoint}`;
   try {
     const response = await fetch(url, {
@@ -17,21 +25,38 @@ const makeRequest = async (endpoint: string, method: 'GET' | 'POST' = 'GET', bod
       body: body ? JSON.stringify(body) : undefined,
     });
     
+    let parsed: any = {};
+    const text = await response.text();
+    if (text) {
+      try {
+        parsed = JSON.parse(text);
+      } catch {
+        parsed = { text };
+      }
+    }
+
     if (!response.ok) {
-      console.warn(`Call API warning (${response.status}): ${endpoint} not found on server yet.`);
-      return {}; // return empty object so app doesn't crash on unimplemented routes
+      console.warn(`[callApi] Request to ${endpoint} returned HTTP ${response.status}`);
+      return {
+        ok: false,
+        status: response.status,
+        error: parsed.error || parsed.message || `HTTP ${response.status}`,
+        ...parsed
+      };
     }
     
-    const text = await response.text();
-    if (!text) return {};
-    try {
-      return JSON.parse(text);
-    } catch {
-      return {};
-    }
-  } catch (e) {
-    console.warn(`Call API error: ${endpoint}`, e);
-    return {};
+    return {
+      ok: true,
+      status: response.status,
+      ...(typeof parsed === 'object' && parsed !== null ? parsed : { data: parsed })
+    };
+  } catch (e: any) {
+    console.warn(`[callApi] Network or parse error on ${endpoint}:`, e);
+    return {
+      ok: false,
+      status: 0,
+      error: e?.message || 'Network error'
+    };
   }
 };
 

@@ -1,10 +1,29 @@
 import { toast } from 'sonner';
-import React, { useEffect, useRef, useState } from 'react';
-import { PhoneOff, Mic, MicOff, Camera, CameraOff, MonitorUp, ChevronDown, Volume2, MessageSquare, Phone, User, Settings2, Activity, Wifi, X, Maximize, Minimize } from 'lucide-react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
+import {
+  PhoneOff,
+  Mic,
+  MicOff,
+  Camera,
+  CameraOff,
+  MonitorUp,
+  ChevronDown,
+  Volume2,
+  VolumeX,
+  Phone,
+  User,
+  Settings2,
+  Wifi,
+  X,
+  Maximize,
+  Minimize,
+  RefreshCw,
+  AlertCircle
+} from 'lucide-react';
 import { useWebRTC } from '../hooks/useWebRTC';
 import { useCallControls } from '../hooks/useCallControls';
 import { sanitizeUrl } from '../services/storageService';
-import { db, rtdb } from '../lib/firebase';
+import { rtdb } from '../lib/firebase';
 import { ref as dbRef, set, onDisconnect } from 'firebase/database';
 
 interface CallRoomProps {
@@ -14,66 +33,118 @@ interface CallRoomProps {
   onEndCall: () => void;
 }
 
-const ParticipantView: React.FC<{ participant: any, isLocal?: boolean, volume?: number }> = ({ participant, isLocal, volume = 1 }) => {
+const ParticipantView: React.FC<{
+  participant: any;
+  isLocal?: boolean;
+  volume?: number;
+  selectedSpeaker?: string;
+  isDeafened?: boolean;
+}> = ({ participant, isLocal, volume = 1, selectedSpeaker, isDeafened = false }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [hasVideo, setHasVideo] = useState(false);
+  const [autoplayBlocked, setAutoplayBlocked] = useState(false);
 
+  // Manage volume and muting
   useEffect(() => {
+    const effectiveVolume = isDeafened ? 0 : volume;
     if (videoRef.current) {
       if (isLocal) {
         videoRef.current.volume = 0;
+        videoRef.current.muted = true;
       } else {
-        videoRef.current.volume = volume;
+        videoRef.current.volume = effectiveVolume;
+        videoRef.current.muted = isDeafened;
       }
     }
-  }, [volume, isLocal]);
+    if (audioRef.current && !isLocal) {
+      audioRef.current.volume = effectiveVolume;
+      audioRef.current.muted = isDeafened;
+    }
+  }, [volume, isLocal, isDeafened]);
 
+  // Apply audio output sink ID if supported by browser
   useEffect(() => {
-    if (participant.stream && videoRef.current) {
-      videoRef.current.srcObject = participant.stream;
+    if (selectedSpeaker && !isLocal) {
+      const sink = selectedSpeaker === 'default' ? '' : selectedSpeaker;
+      if (videoRef.current && typeof (videoRef.current as any).setSinkId === 'function') {
+        (videoRef.current as any).setSinkId(sink).catch((e: any) => console.warn('video.setSinkId failed:', e));
+      }
+      if (audioRef.current && typeof (audioRef.current as any).setSinkId === 'function') {
+        (audioRef.current as any).setSinkId(sink).catch((e: any) => console.warn('audio.setSinkId failed:', e));
+      }
+    }
+  }, [selectedSpeaker, isLocal]);
+
+  // Handle stream assignment and autoplay policy
+  useEffect(() => {
+    if (participant.stream) {
+      if (videoRef.current) {
+        videoRef.current.srcObject = participant.stream;
+      }
+      if (audioRef.current && !isLocal) {
+        audioRef.current.srcObject = participant.stream;
+      }
+
+      if (!isLocal && videoRef.current) {
+        const playPromise = videoRef.current.play();
+        if (playPromise !== undefined) {
+          playPromise
+            .then(() => {
+              setAutoplayBlocked(false);
+            })
+            .catch((err) => {
+              if (err.name === 'NotAllowedError') {
+                console.warn('[CallRoom] Autoplay blocked for remote participant', participant.id);
+                setAutoplayBlocked(true);
+              }
+            });
+        }
+      }
     }
     return () => {
       if (videoRef.current) {
         videoRef.current.srcObject = null;
       }
+      if (audioRef.current) {
+        audioRef.current.srcObject = null;
+      }
     };
-  }, [participant.stream]);
+  }, [participant.stream, isLocal, participant.id]);
 
+  // Monitor live video track state
   useEffect(() => {
     if (!participant.stream) return;
-    
-    // Check if video is active
     const checkVideo = () => {
       const videoTracks = participant.stream.getVideoTracks();
       setHasVideo(videoTracks.length > 0 && videoTracks.some((t: any) => t.enabled && t.readyState === 'live' && !t.muted));
     };
     checkVideo();
-
     const interval = setInterval(checkVideo, 1000);
     return () => clearInterval(interval);
   }, [participant.stream]);
 
+  // Audio level analysis for speaking indicator
   useEffect(() => {
     if (!participant.stream || !participant.stream.getAudioTracks().length) return;
-    
-    let audioContext: AudioContext;
-    let analyser: AnalyserNode;
-    let microphone: MediaStreamAudioSourceNode;
+
+    let audioContext: AudioContext | null = null;
+    let analyser: AnalyserNode | null = null;
+    let microphone: MediaStreamAudioSourceNode | null = null;
     let rafId: number;
 
     try {
       audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
       analyser = audioContext.createAnalyser();
-      
-      // Local stream needs to be handled carefully to not cause feedback, but Web Audio API is just reading
       microphone = audioContext.createMediaStreamSource(participant.stream);
       microphone.connect(analyser);
-      
+
       analyser.fftSize = 256;
       const dataArray = new Uint8Array(analyser.frequencyBinCount);
 
       const checkVolume = () => {
+        if (!analyser) return;
         analyser.getByteFrequencyData(dataArray);
         let sum = 0;
         for (let i = 0; i < dataArray.length; i++) {
@@ -85,7 +156,7 @@ const ParticipantView: React.FC<{ participant: any, isLocal?: boolean, volume?: 
       };
       checkVolume();
     } catch (e) {
-       console.warn("Could not start audio context", e);
+      // AudioContext may fail if suspended before interaction
     }
 
     return () => {
@@ -96,29 +167,64 @@ const ParticipantView: React.FC<{ participant: any, isLocal?: boolean, volume?: 
     };
   }, [participant.stream]);
 
+  const handleUnlockAudio = () => {
+    if (videoRef.current) {
+      videoRef.current.play().then(() => setAutoplayBlocked(false)).catch(() => {});
+    }
+    if (audioRef.current) {
+      audioRef.current.play().catch(() => {});
+    }
+  };
+
   return (
-    <div className={`relative w-full h-full rounded-2xl sm:rounded-3xl overflow-hidden bg-[#111111] border-[3px] transition-all duration-300 shadow-lg ${isSpeaking ? 'border-green-500 shadow-[0_0_30px_rgba(34,197,94,0.15)] ring-2 ring-green-500/50' : 'border-[#2d2d2d]'}`}>
-      <video 
-        autoPlay 
-        playsInline 
-        muted={isLocal} 
-        className={`absolute inset-0 w-full h-full object-contain transition-opacity duration-500 ${hasVideo ? 'opacity-100' : 'opacity-0'}`} 
-        ref={videoRef} 
+    <div
+      className={`relative w-full h-full rounded-2xl sm:rounded-3xl overflow-hidden bg-[#111111] border-[3px] transition-all duration-300 shadow-lg ${
+        isSpeaking ? 'border-green-500 shadow-[0_0_30px_rgba(34,197,94,0.15)] ring-2 ring-green-500/50' : 'border-[#2d2d2d]'
+      }`}
+    >
+      <video
+        autoPlay
+        playsInline
+        muted={isLocal}
+        className={`absolute inset-0 w-full h-full object-contain transition-opacity duration-500 ${hasVideo ? 'opacity-100' : 'opacity-0'}`}
+        ref={videoRef}
       />
-      
+      {!isLocal && <audio ref={audioRef} autoPlay playsInline />}
+
+      {autoplayBlocked && !isLocal && (
+        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/75 backdrop-blur-md p-4 text-center">
+          <button
+            onClick={handleUnlockAudio}
+            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-3 rounded-full font-semibold shadow-xl transition-all hover:scale-105 active:scale-95"
+          >
+            <Volume2 className="w-5 h-5" />
+            Ativar Áudio
+          </button>
+          <span className="text-white/70 text-xs sm:text-sm mt-3 max-w-xs">
+            O navegador bloqueou a reprodução automática. Clique acima para liberar o áudio da chamada.
+          </span>
+        </div>
+      )}
+
       {!hasVideo && (
         <div className="absolute inset-0 flex items-center justify-center bg-[#111111] overflow-hidden">
           {participant.bannerUrl && (
-            <img src={sanitizeUrl(participant.bannerUrl)} alt="Background" className="absolute inset-0 w-full h-full object-cover opacity-[0.25] blur-[8px] scale-110 pointer-events-none" />
+            <img
+              src={sanitizeUrl(participant.bannerUrl)}
+              alt="Background"
+              className="absolute inset-0 w-full h-full object-cover opacity-[0.25] blur-[8px] scale-110 pointer-events-none"
+            />
           )}
           <div className="absolute inset-0 bg-gradient-to-t from-[#111111] via-transparent to-transparent opacity-80" />
-          
+
           <div className="relative flex flex-col items-center gap-4 z-10 w-full px-4">
             <div className={`relative rounded-full transition-all duration-300 ${isSpeaking ? 'scale-105' : 'scale-100'}`}>
-              <img 
+              <img
                 src={participant.avatarUrl ? sanitizeUrl(participant.avatarUrl) : `https://api.dicebear.com/7.x/initials/svg?seed=${participant.seed}`}
                 alt={participant.displayName}
-                className={`w-24 h-24 sm:w-32 sm:h-32 rounded-full object-cover border-[3px] transition-colors duration-300 shadow-2xl ${isSpeaking ? 'border-green-500' : 'border-zinc-700'}`}
+                className={`w-24 h-24 sm:w-32 sm:h-32 rounded-full object-cover border-[3px] transition-colors duration-300 shadow-2xl ${
+                  isSpeaking ? 'border-green-500' : 'border-zinc-700'
+                }`}
                 onError={(e) => {
                   const target = e.target as HTMLImageElement;
                   if (!target.src.includes('dicebear.com')) {
@@ -132,118 +238,163 @@ const ParticipantView: React.FC<{ participant: any, isLocal?: boolean, volume?: 
                 </div>
               )}
             </div>
-            
-            {/* Show name nicely when no video */}
-            <div className={`px-4 py-1.5 rounded-full bg-black/40 backdrop-blur-md border border-white/5 shadow-xl flex items-center gap-2 max-w-full`}>
-               <span className="text-white font-medium text-sm sm:text-base truncate">{participant.displayName} {isLocal && "(Você)"}</span>
-               {isSpeaking ? <Volume2 className="w-4 h-4 text-green-400" /> : <MicOff className="w-4 h-4 text-red-400/80" />}
+
+            <div className="px-4 py-1.5 rounded-full bg-black/40 backdrop-blur-md border border-white/5 shadow-xl flex items-center gap-2 max-w-full">
+              <span className="text-white font-medium text-sm sm:text-base truncate">
+                {participant.displayName} {isLocal && '(Você)'}
+              </span>
+              {isSpeaking ? <Volume2 className="w-4 h-4 text-green-400" /> : <MicOff className="w-4 h-4 text-red-400/80" />}
             </div>
           </div>
         </div>
       )}
 
       {hasVideo && (
-        <div className="absolute bottom-4 left-4 bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-lg border border-white/10 text-white font-medium text-sm flex items-center gap-2 shadow-lg">
-           {participant.displayName} {isLocal && "(Você)"}
-           {isSpeaking ? <Mic className="w-3.5 h-3.5 text-green-400" /> : <MicOff className="w-3.5 h-3.5 text-red-500" />}
+        <div className="absolute bottom-4 left-4 z-10">
+          <div
+            className={`px-3 py-1.5 rounded-xl bg-black/40 backdrop-blur-md border border-white/10 shadow-lg flex items-center gap-2 max-w-full transition-all ${
+              isSpeaking ? 'bg-black/60 border-green-500/30' : ''
+            }`}
+          >
+            <span className="text-white font-medium text-xs sm:text-sm truncate drop-shadow-md">
+              {participant.displayName} {isLocal && '(Você)'}
+            </span>
+            {isSpeaking ? <Volume2 className="w-3.5 h-3.5 text-green-400" /> : <MicOff className="w-3.5 h-3.5 text-red-400/80" />}
+          </div>
         </div>
       )}
     </div>
   );
-}
+};
 
 export default function CallRoom({ currentUser, conversation, callType, onEndCall }: CallRoomProps) {
   const callId = conversation._id;
-  const { 
-    isConnected, 
-    localStream, 
-    remoteStreams, 
+  const isGroup = conversation.type === 'group';
+
+  const {
+    isConnected,
+    callState,
+    errorMessage,
+    localStream,
+    remoteStreams,
     activeScreenShares,
     startLocalStream,
     replaceVideoTrack,
-    connectSocket, 
-    cleanup,
-    pcMap
+    connectSocket,
+    retryConnection,
+    cleanup
   } = useWebRTC({
     callId,
     userId: currentUser._id,
-    userName: currentUser.username,
-    isGroup: conversation.isGroup,
+    userName: currentUser.displayName,
+    isGroup
   });
 
-  const controls = useCallControls(callId);
+  const {
+    devices,
+    selectedMic,
+    selectedCamera,
+    selectedSpeaker,
+    audioVolume,
+    noiseSuppression,
+    audioQuality,
+    hasVideo,
+    isMuted,
+    isSharingScreen,
+    showSettings,
+    isDeafened,
+    sinkIdSupported,
+    setSelectedMic,
+    setSelectedCamera,
+    setSelectedSpeaker,
+    setAudioVolume,
+    setNoiseSuppression,
+    setAudioQuality,
+    setIsSharingScreen,
+    setShowSettings,
+    toggleVideo,
+    toggleMute,
+    toggleDeafen,
+    refreshDevices
+  } = useCallControls(callType === 'video');
 
-  const [isMuted, setIsMuted] = useState(false);
-  const [hasVideo, setHasVideo] = useState(callType === 'video');
-  const [isScreenSharing, setIsScreenSharing] = useState(false);
-  const [isMinimized, setIsMinimized] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  
-  // Settings State
-  const [showSettings, setShowSettings] = useState(false);
-  const [audioQuality, setAudioQuality] = useState<'low' | 'normal' | 'ultra' | 'lossless'>('normal');
-  const [screenQuality, setScreenQuality] = useState<'720p30' | '720p60' | '1080p30' | '1080p60'>('1080p30');
-  const [noiseSuppression, setNoiseSuppression] = useState(true);
-  const [callVolume, setCallVolume] = useState(1);
-  const [selectedMic, setSelectedMic] = useState<string>('default');
-  const [selectedSpeaker, setSelectedSpeaker] = useState<string>('default');
-  const [availableDevices, setAvailableDevices] = useState<MediaDeviceInfo[]>([]);
-  const [networkQuality, setNetworkQuality] = useState<'Excelente'|'Boa'|'Ruim'>('Boa');
-
-  const localVideoRef = useRef<HTMLVideoElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const screenStreamRef = useRef<MediaStream | null>(null);
 
   useEffect(() => {
-    navigator.mediaDevices.enumerateDevices().then(devices => {
-      setAvailableDevices(devices);
-    }).catch(console.error);
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
   }, []);
+
+  const toggleFullscreen = async () => {
+    if (!containerRef.current) return;
+    if (!document.fullscreenElement) {
+      await containerRef.current.requestFullscreen().catch((err) => console.error(err));
+    } else {
+      await document.exitFullscreen().catch((err) => console.error(err));
+    }
+  };
 
   const isFirstMount = useRef(true);
 
-  // 1. Initial Connection. Runs ONLY ONCE per call
+  // Initial call setup: acquire media and register RTDB presence
   useEffect(() => {
     let mounted = true;
     const init = async () => {
       try {
-        const stream = await startLocalStream(callType === 'video', {
-           deviceId: selectedMic !== 'default' ? { exact: selectedMic } : undefined,
-           noiseSuppression: noiseSuppression,
-           echoCancellation: true, // Fix Echo issue, always true
-           autoGainControl: audioQuality !== 'lossless',
-           sampleRate: audioQuality === 'low' ? 16000 : 48000
-        }, audioQuality);
+        await startLocalStream(
+          callType === 'video',
+          {
+            deviceId: selectedMic !== 'default' ? { exact: selectedMic } : undefined,
+            noiseSuppression: noiseSuppression,
+            echoCancellation: true,
+            autoGainControl: audioQuality !== 'lossless',
+            sampleRate: audioQuality === 'low' ? 16000 : 48000
+          },
+          audioQuality
+        );
+
         if (!mounted) return;
-        if (localVideoRef.current && callType === 'video') {
-          localVideoRef.current.srcObject = stream;
-        }
+
+        // Connect to Firebase RTDB signaling
         connectSocket();
-        import("../services/soundService").then(s => s.soundService.playCallEnter());
+
+        // Refresh devices to obtain hardware labels now that permission is granted
+        refreshDevices();
+
+        import('../services/soundService')
+          .then((s) => s.soundService.playCallEnter())
+          .catch(() => {});
       } catch (err: any) {
-        console.error(err);
+        console.error('[CallRoom] Initialization error:', err);
       }
     };
     init();
 
+    // Register active participant in conversation call status
     const myCallRef = dbRef(rtdb, `conversations/${callId}/callStatus/participants/${currentUser._id}`);
     set(myCallRef, true);
     onDisconnect(myCallRef).remove();
 
     return () => {
       mounted = false;
-      if (localVideoRef.current) localVideoRef.current.srcObject = null;
       if (screenStreamRef.current) {
-        screenStreamRef.current.getTracks().forEach(t => t.stop());
+        screenStreamRef.current.getTracks().forEach((t) => t.stop());
         screenStreamRef.current = null;
       }
       cleanup();
-      set(myCallRef, null);
-      import("../services/soundService").then(s => s.soundService.playCallLeave());
+      set(myCallRef, null).catch(() => {});
+      import('../services/soundService')
+        .then((s) => s.soundService.playCallLeave())
+        .catch(() => {});
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [callId, callType, currentUser._id]); // Exclude selectedMic, noiseSuppression, audioQuality
+  }, [callId, callType, currentUser._id]);
 
-  // 2. Adjust audio tracks and Quality dynamically WITHOUT dropping connection
+  // React to microphone or audio quality changes
   useEffect(() => {
     if (isFirstMount.current) {
       isFirstMount.current = false;
@@ -251,447 +402,528 @@ export default function CallRoom({ currentUser, conversation, callType, onEndCal
     }
     const applyChanges = async () => {
       try {
-        const stream = await startLocalStream(hasVideo, {
-          deviceId: selectedMic !== 'default' ? { exact: selectedMic } : undefined,
-          noiseSuppression: noiseSuppression,
-          echoCancellation: true, // Always true to avoid echo
-          autoGainControl: audioQuality !== 'lossless',
-          sampleRate: audioQuality === 'low' ? 16000 : 48000
-        }, audioQuality);
-        if (localVideoRef.current && hasVideo) {
-          localVideoRef.current.srcObject = stream;
+        await startLocalStream(
+          hasVideo,
+          {
+            deviceId: selectedMic !== 'default' ? { exact: selectedMic } : undefined,
+            noiseSuppression: noiseSuppression,
+            echoCancellation: true,
+            autoGainControl: audioQuality !== 'lossless',
+            sampleRate: audioQuality === 'low' ? 16000 : 48000
+          },
+          audioQuality
+        );
+
+        if (localStream) {
+          localStream.getAudioTracks().forEach((t) => (t.enabled = !isMuted));
+          localStream.getVideoTracks().forEach((t) => (t.enabled = hasVideo));
         }
-      } catch (e) {
-        console.error('Failed to update local stream', e);
+      } catch (err) {
+        console.error('[CallRoom] Failed applying track changes:', err);
       }
     };
     applyChanges();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [audioQuality, selectedMic, noiseSuppression]);
+  }, [selectedMic, noiseSuppression, audioQuality]);
 
-  // 3. Auto Adjust quality based on network
-  useEffect(() => {
-    if (networkQuality === 'Ruim' && audioQuality !== 'low') {
-      setAudioQuality('low');
-    } else if (networkQuality === 'Boa' && audioQuality === 'ultra') {
-      setAudioQuality('normal');
-    } else if (networkQuality === 'Excelente' && audioQuality === 'low') {
-      setAudioQuality('normal');
-    }
-  }, [networkQuality, audioQuality]);
+  // Screen sharing with system audio capture
+  const handleToggleScreenShare = async () => {
+    if (isSharingScreen && screenStreamRef.current) {
+      screenStreamRef.current.getTracks().forEach((t) => t.stop());
+      screenStreamRef.current = null;
+      setIsSharingScreen(false);
 
-  useEffect(() => {
-    // Quality monitor
-    const interval = setInterval(async () => {
-      let maxPacketLoss = 0;
-      let totalRTT = 0;
-      let statsCount = 0;
-      
-      for (const pc of Object.values(pcMap) as RTCPeerConnection[]) {
-         if (pc.signalingState === 'closed') continue;
-         try {
-           const stats = await pc.getStats();
-           stats.forEach(report => {
-             if (report.type === 'inbound-rtp' && report.kind === 'audio') {
-                const lossRate = report.packetsLost / (report.packetsReceived + report.packetsLost || 1);
-                maxPacketLoss = Math.max(maxPacketLoss, lossRate);
-             }
-             if (report.type === 'candidate-pair' && report.state === 'succeeded') {
-                totalRTT += report.currentRoundTripTime || 0;
-                statsCount++;
-             }
-           });
-         } catch (err: any) {
-           // Ignorar falha no pc.getStats caso caia ou a conexão feche rápido demais
-         }
+      const stream = await startLocalStream(
+        hasVideo,
+        {
+          deviceId: selectedMic !== 'default' ? { exact: selectedMic } : undefined,
+          noiseSuppression: noiseSuppression,
+          echoCancellation: true,
+          autoGainControl: audioQuality !== 'lossless',
+          sampleRate: audioQuality === 'low' ? 16000 : 48000
+        },
+        audioQuality
+      );
+
+      if (stream) {
+        stream.getAudioTracks().forEach((t) => (t.enabled = !isMuted));
+        stream.getVideoTracks().forEach((t) => (t.enabled = hasVideo));
       }
-
-      if (statsCount > 0) {
-         const avgRTT = totalRTT / statsCount;
-         if (maxPacketLoss > 0.05 || avgRTT > 0.3) setNetworkQuality('Ruim');
-         else if (maxPacketLoss > 0.01 || avgRTT > 0.1) setNetworkQuality('Boa');
-         else setNetworkQuality('Excelente');
-      }
-    }, 2000);
-
-    return () => clearInterval(interval);
-  }, [pcMap]);
-
-  const toggleMute = async () => {
-    if (localStream) {
-      localStream.getAudioTracks().forEach(t => t.enabled = !t.enabled);
-      const muted = !localStream.getAudioTracks()[0]?.enabled;
-      setIsMuted(muted);
-      if (muted) await controls.muteAudio();
-      else await controls.unmuteAudio();
-      
-      // Play mute click
-      import("../services/soundService").then(s => s.soundService.playCallMute());
-    }
-  };
-
-  const toggleVideo = async () => {
-    if (localStream) {
-      if (hasVideo) {
-         // Disable video
-         localStream.getVideoTracks().forEach(t => t.stop());
-         replaceVideoTrack(null);
-         setHasVideo(false);
-         await controls.disableVideo();
-      } else {
-         // Enable video
-         const newStream = await navigator.mediaDevices.getUserMedia({ video: true });
-         const newVideoTrack = newStream.getVideoTracks()[0];
-         if (localVideoRef.current) {
-            localVideoRef.current.srcObject = new MediaStream([newVideoTrack, ...localStream.getAudioTracks()]);
-         }
-         replaceVideoTrack(newVideoTrack);
-         setHasVideo(true);
-         await controls.enableVideo();
-      }
-    }
-  };
-
-  const getScreenConstraints = (quality: string) => {
-    switch (quality) {
-      case '720p30': return { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } };
-      case '720p60': return { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 60 } };
-      case '1080p30': return { width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } };
-      case '1080p60': return { width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 60 } };
-      default: return { width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } };
-    }
-  };
-
-  const getScreenBitrate = (quality: string) => {
-     switch (quality) {
-       case '720p30': return 1000000;
-       case '720p60': return 2000000;
-       case '1080p30': return 3000000;
-       case '1080p60': return 5000000;
-       default: return 3000000;
-     }
-  };
-
-  // Effect to change quality while sharing
-  useEffect(() => {
-    if (isScreenSharing && screenStreamRef.current) {
-      const track = screenStreamRef.current.getVideoTracks()[0];
-      if (track && track.applyConstraints) {
-        track.applyConstraints(getScreenConstraints(screenQuality)).catch(e => console.error("Could not apply screen constraints", e));
-        replaceVideoTrack(track, getScreenBitrate(screenQuality), 'detail');
-      }
-    }
-  }, [screenQuality, isScreenSharing]);
-
-  const toggleScreenShare = async () => {
-    if (!isScreenSharing) {
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
-        toast.error("Screen sharing is not supported.");
-        return;
-      }
+    } else {
       try {
-        const screenStream = await navigator.mediaDevices.getDisplayMedia({ 
-          video: getScreenConstraints(screenQuality),
-          audio: true
+        const displayStream = await navigator.mediaDevices.getDisplayMedia({
+          video: true,
+          audio: true // Solicits system / tab audio
         });
-        screenStreamRef.current = screenStream;
-        
-        screenStream.getVideoTracks()[0].onended = () => {
-          stopScreenShare();
+        screenStreamRef.current = displayStream;
+        setIsSharingScreen(true);
+
+        const videoTrack = displayStream.getVideoTracks()[0];
+        const audioTracks = displayStream.getAudioTracks();
+        const systemAudioTrack = audioTracks.length > 0 ? audioTracks[0] : null;
+
+        if (!systemAudioTrack) {
+          toast.info('Compartilhando tela (áudio do sistema não incluído)');
+        } else {
+          toast.success('Compartilhando tela com áudio do sistema');
+        }
+
+        // Auto revert when user stops sharing via the browser bar
+        videoTrack.onended = () => {
+          if (screenStreamRef.current) {
+            screenStreamRef.current.getTracks().forEach((t) => t.stop());
+            screenStreamRef.current = null;
+          }
+          setIsSharingScreen(false);
+          startLocalStream(
+            hasVideo,
+            {
+              deviceId: selectedMic !== 'default' ? { exact: selectedMic } : undefined,
+              noiseSuppression: noiseSuppression,
+              echoCancellation: true
+            },
+            audioQuality
+          ).then((stream) => {
+            if (stream) {
+              stream.getAudioTracks().forEach((t) => (t.enabled = !isMuted));
+              stream.getVideoTracks().forEach((t) => (t.enabled = hasVideo));
+            }
+          });
         };
 
-        if (localVideoRef.current) {
-          localVideoRef.current.srcObject = screenStream;
-        }
-        
-        replaceVideoTrack(screenStream.getVideoTracks()[0], getScreenBitrate(screenQuality), 'detail');
-        await controls.startScreenShare();
-        setIsScreenSharing(true);
+        await replaceVideoTrack(videoTrack, systemAudioTrack, 2500000, 'detail');
       } catch (err: any) {
-        console.error('Error sharing screen', err);
+        if (err.name !== 'NotAllowedError') {
+          console.error('[CallRoom] Screen share error:', err);
+          toast.error('Não foi possível compartilhar a tela');
+        }
+        setIsSharingScreen(false);
       }
+    }
+  };
+
+  // Sync mute state with local audio tracks
+  useEffect(() => {
+    if (localStream) {
+      localStream.getAudioTracks().forEach((t) => (t.enabled = !isMuted));
+    }
+  }, [isMuted, localStream]);
+
+  // Sync video toggle and camera device changes
+  useEffect(() => {
+    if (localStream && !isSharingScreen) {
+      const applyVideo = async () => {
+        try {
+          if (hasVideo) {
+            const stream = await navigator.mediaDevices.getUserMedia({
+              video: { deviceId: selectedCamera !== 'default' ? { exact: selectedCamera } : undefined }
+            });
+            const vTrack = stream.getVideoTracks()[0];
+            await replaceVideoTrack(vTrack);
+            localStream.getVideoTracks().forEach((t) => {
+              if (t !== vTrack) {
+                t.stop();
+                localStream.removeTrack(t);
+              }
+            });
+            localStream.addTrack(vTrack);
+          } else {
+            await replaceVideoTrack(null);
+            localStream.getVideoTracks().forEach((t) => {
+              t.stop();
+              localStream.removeTrack(t);
+            });
+          }
+        } catch (e) {
+          console.error('[CallRoom] Camera switch error:', e);
+          toast.error('Erro ao alternar câmera');
+        }
+      };
+      applyVideo();
+    }
+  }, [hasVideo, selectedCamera]);
+
+  const remoteParticipants = Object.keys(remoteStreams).map((id) => {
+    let participantData = null;
+    if (isGroup) {
+      participantData = conversation.participants?.find((p: any) => p._id === id);
     } else {
-      stopScreenShare();
-    }
-  };
-
-  const stopScreenShare = async () => {
-    if (screenStreamRef.current) {
-      screenStreamRef.current.getTracks().forEach(t => t.stop());
-      screenStreamRef.current = null;
-    }
-    
-    // Resume camera if had video
-    if (hasVideo) {
-       const newStream = await navigator.mediaDevices.getUserMedia({ video: true });
-       const newVideoTrack = newStream.getVideoTracks()[0];
-       replaceVideoTrack(newVideoTrack);
-       if (localVideoRef.current && localStream) {
-         localVideoRef.current.srcObject = new MediaStream([newVideoTrack, ...localStream.getAudioTracks()]);
-       }
-    } else {
-       replaceVideoTrack(null);
+      participantData = conversation.participants?.find((p: any) => p._id === id) || conversation;
     }
 
-    try {
-      await controls.stopScreenShare();
-    } catch (e) {
-      console.warn(e);
-    }
-    setIsScreenSharing(false);
-  };
-
-
-  const endCall = async () => {
-    try {
-      await controls.endCall();
-    } catch (e) {
-      console.warn("End call API failed", e);
-    }
-    cleanup();
-    onEndCall();
-  };
-
-  const getUserInfo = (userId: string) => {
-    if (conversation.isGroup && conversation.participants) {
-      return conversation.participants.find((p: any) => p._id === userId);
-    }
-    if (!conversation.isGroup && conversation.otherUser?._id === userId) {
-      return conversation.otherUser;
-    }
-    return null;
-  };
-
-  const remoteUsers = Object.entries(remoteStreams).map(([id, stream]) => {
-    const user = getUserInfo(id);
     return {
       id,
-      stream,
-      displayName: user ? (user.username || user.phoneNumber) : `Remote ${id.substring(0,4)}`,
-      avatarUrl: user?.avatarUrl,
-      bannerUrl: user?.bannerUrl,
-      seed: user ? (user.username || user.phoneNumber || user._id) : id
+      stream: remoteStreams[id],
+      displayName: participantData?.displayName || 'Participante',
+      avatarUrl: participantData?.avatarUrl,
+      seed: participantData?.username || id,
+      bannerUrl: participantData?.bannerUrl
     };
   });
 
-  const localUser = {
-    id: currentUser._id,
-    stream: isScreenSharing && screenStreamRef.current ? screenStreamRef.current : localStream,
-    displayName: "Me",
-    avatarUrl: currentUser.avatarUrl,
-    bannerUrl: currentUser.bannerUrl,
-    seed: currentUser.username || currentUser._id
+  const getCallStatusLabel = () => {
+    switch (callState) {
+      case 'connected':
+        return 'Conectado';
+      case 'connecting':
+        return 'Conectando...';
+      case 'reconnecting':
+        return 'Reconectando...';
+      case 'signaling':
+        return 'Sinalizando...';
+      case 'capturing':
+        return 'Capturando mídia...';
+      case 'requesting-permission':
+        return 'Solicitando permissão...';
+      case 'failed':
+        return 'Falha na conexão';
+      case 'disconnected':
+        return 'Desconectado';
+      default:
+        return 'Aguardando';
+    }
   };
 
-  const participants = [...remoteUsers, localUser];
-
-  useEffect(() => {
-    if (isMinimized && localVideoRef.current && localStream) {
-      localVideoRef.current.srcObject = isScreenSharing && screenStreamRef.current ? screenStreamRef.current : localStream;
+  const getCallStatusColor = () => {
+    switch (callState) {
+      case 'connected':
+        return 'bg-green-400 text-green-400 shadow-[0_0_8px_rgba(74,222,128,0.8)]';
+      case 'failed':
+        return 'bg-red-400 text-red-400';
+      case 'reconnecting':
+      case 'connecting':
+      case 'signaling':
+        return 'bg-yellow-400 text-yellow-400';
+      default:
+        return 'bg-zinc-400 text-zinc-400';
     }
-  }, [isMinimized, localStream, isScreenSharing]);
-
-  if (isMinimized) {
-    return (
-      <div 
-        onClick={() => setIsMinimized(false)}
-        className="fixed bottom-24 right-6 w-24 h-32 sm:w-32 sm:h-40 bg-zinc-900 rounded-2xl border-2 border-indigo-500 shadow-[0_0_20px_rgba(99,102,241,0.3)] overflow-hidden cursor-pointer z-50 flex items-center justify-center hover:scale-105 transition-transform group"
-      >
-         <video muted autoPlay playsInline ref={localVideoRef} className="absolute inset-0 w-full h-full object-contain" />
-      </div>
-    );
-  }
-
-  let gridCols = 'grid-cols-1';
-  let gridRows = 'grid-rows-1';
-  
-  if (participants.length === 1) {
-    gridCols = 'grid-cols-1';
-    gridRows = 'grid-rows-1';
-  } else if (participants.length === 2) {
-    gridCols = 'grid-cols-1 md:grid-cols-2';
-    gridRows = 'grid-rows-2 md:grid-rows-1';
-  } else if (participants.length <= 4) {
-    gridCols = 'grid-cols-2';
-    gridRows = 'grid-rows-2';
-  } else if (participants.length <= 6) {
-    gridCols = 'grid-cols-2 md:grid-cols-3';
-    gridRows = 'grid-rows-3 md:grid-rows-2';
-  } else if (participants.length <= 8) {
-    gridCols = 'grid-cols-2 md:grid-cols-4';
-    gridRows = 'grid-rows-4 md:grid-rows-2';
-  } else {
-    gridCols = 'grid-cols-3 md:grid-cols-4';
-    gridRows = 'grid-rows-4 md:grid-rows-3';
-  }
-
-  const screenSharingParticipant = participants.find(p => activeScreenShares.has(p.id) || (p.id === currentUser._id && isScreenSharing));
+  };
 
   return (
-    <div className={`z-50 bg-[#0A0A0A] flex flex-col font-sans overflow-hidden transition-all duration-300 ${isFullscreen ? 'fixed inset-0' : 'fixed inset-0 md:absolute rounded-tl-2xl'}`}>
-      <div className="flex items-center justify-between px-6 py-4 sm:py-6 text-white absolute top-0 inset-x-0 z-50 bg-gradient-to-b from-[#0A0A0A] to-transparent pointer-events-none">
-        <button onClick={() => setIsMinimized(true)} className="pointer-events-auto p-2 -ml-2 rounded-full hover:bg-white/10 transition backdrop-blur-md">
-          <ChevronDown className="w-7 h-7" />
-        </button>
-        <div className="text-lg font-semibold flex items-center gap-2 drop-shadow-md">
-           {conversation.name || 'Ligação'}
-           <span className="text-xs font-bold uppercase tracking-wider bg-indigo-500/20 text-indigo-300 px-2.5 py-0.5 rounded-full border border-indigo-500/30">
-             {isConnected ? 'Conectado' : 'Conectando...'}
-           </span>
-           {networkQuality !== 'Boa' && (
-             <span className={`text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border flex items-center gap-1 ${networkQuality === 'Excelente' ? 'bg-green-500/20 text-green-400 border-green-500/30' : 'bg-red-500/20 text-red-400 border-red-500/30'}`}>
-               <Wifi className="w-3 h-3" /> {networkQuality}
-             </span>
-           )}
-        </div>
-        <div className="flex gap-3 pointer-events-auto">
-          <button onClick={() => setIsFullscreen(!isFullscreen)} className="hidden md:block p-2 rounded-full hover:bg-white/10 transition text-zinc-300 backdrop-blur-md">
-            {isFullscreen ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
-          </button>
-          <button onClick={() => setShowSettings(true)} className="p-2 rounded-full hover:bg-white/10 transition text-zinc-300 backdrop-blur-md">
-            <Settings2 className="w-5 h-5" />
-          </button>
-        </div>
-      </div>
-
-      <div className={`flex-1 w-full mx-auto flex items-center justify-center pt-20 sm:pt-24 pb-32 sm:pb-36 px-4`}>
-        <div className={`w-full max-w-[1920px] h-full ${screenSharingParticipant ? 'flex flex-col lg:flex-row gap-4' : `grid ${gridCols} ${gridRows} gap-4 sm:gap-6 lg:w-[80%] lg:h-[80%]`} overflow-hidden`}>
-          {screenSharingParticipant ? (
-             <>
-               <div className="flex-1 min-h-[40vh] bg-black rounded-2xl overflow-hidden relative border border-zinc-800 shadow-2xl">
-                 <ParticipantView participant={screenSharingParticipant} isLocal={screenSharingParticipant.id === currentUser._id} volume={screenSharingParticipant.id === currentUser._id ? 0 : callVolume} />
-               </div>
-               <div className="flex shrink-0 w-full lg:w-64 lg:flex-col gap-4 overflow-x-auto lg:overflow-y-auto pb-4 lg:pb-0 scrollbar-hide">
-                  {participants.filter(p => p.id !== screenSharingParticipant.id).map(p => (
-                     <div key={p.id} className="w-40 lg:w-full shrink-0 aspect-video lg:aspect-auto lg:h-[140px] rounded-xl overflow-hidden border border-zinc-800 bg-zinc-900">
-                       <ParticipantView participant={p} isLocal={p.id === currentUser._id} volume={callVolume} />
-                     </div>
-                  ))}
-               </div>
-             </>
-          ) : (
-            <>
-              {remoteUsers.map((p, i) => (
-                <ParticipantView key={p.id} participant={p} volume={callVolume} />
-              ))}
-              <ParticipantView participant={localUser} isLocal={true} />
-            </>
-          )}
-        </div>
-      </div>
-
-      <div className="absolute bottom-6 sm:bottom-10 left-1/2 -translate-x-1/2 z-50">
-        <div className="bg-[#1C1C1E]/80 backdrop-blur-2xl border border-white/10 rounded-full px-6 py-3 sm:py-4 flex items-center justify-center gap-4 sm:gap-6 shadow-[0_0_40px_rgba(0,0,0,0.5)]">
-           <button onClick={toggleVideo} className={`p-3.5 sm:p-4 rounded-full transition-all flex items-center justify-center hover:scale-105 active:scale-95 ${hasVideo ? 'bg-white/10 text-white hover:bg-white/20' : 'bg-red-500/20 text-red-500 hover:bg-red-500/30'}`}>
-               {hasVideo ? <Camera className="w-5 h-5 sm:w-6 sm:h-6" /> : <CameraOff className="w-5 h-5 sm:w-6 sm:h-6" />}
-           </button>
-           <button onClick={toggleMute} className={`p-3.5 sm:p-4 rounded-full transition-all flex items-center justify-center hover:scale-105 active:scale-95 ${!isMuted ? 'bg-white/10 text-white hover:bg-white/20' : 'bg-white text-black shadow-lg'}`}>
-               {!isMuted ? <Mic className="w-5 h-5 sm:w-6 sm:h-6" /> : <MicOff className="w-5 h-5 sm:w-6 sm:h-6" />}
-           </button>
-           <button onClick={toggleScreenShare} className={`p-3.5 sm:p-4 rounded-full transition-all flex items-center justify-center hover:scale-105 active:scale-95 ${isScreenSharing ? 'bg-indigo-500 text-white shadow-[0_0_20px_rgba(99,102,241,0.4)]' : 'bg-white/10 text-white hover:bg-white/20'}`}>
-               <MonitorUp className="w-5 h-5 sm:w-6 sm:h-6" />
-           </button>
-           
-           <div className="w-px h-8 sm:h-10 bg-white/10 mx-1 sm:mx-2" />
-           
-           <button onClick={endCall} className="px-5 py-3.5 sm:px-8 sm:py-4 rounded-full bg-red-500 hover:bg-red-600 text-white transition-all flex items-center justify-center shadow-[0_0_20px_rgba(239,68,68,0.4)] hover:scale-105 active:scale-95 group">
-              <PhoneOff className="w-5 h-5 sm:w-6 sm:h-6 fill-current group-hover:-rotate-12 transition-transform" />
-           </button>
-        </div>
-      </div>
-
-      {showSettings && (
-        <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in.">
-          <div className="w-full sm:w-[400px] bg-zinc-900 border border-zinc-800 rounded-t-3xl sm:rounded-3xl p-6 relative">
-             <button onClick={() => setShowSettings(false)} className="absolute right-4 top-4 p-2 text-zinc-400 hover:text-white rounded-full bg-zinc-800/50">
-               <X className="w-5 h-5" />
-             </button>
-             <h2 className="text-xl font-bold text-white mb-6">Configurações da Chamada</h2>
-             
-             <div className="space-y-5">
-               <div>
-                  <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2 block">Microfone</label>
-                  <select 
-                    value={selectedMic} 
-                    onChange={e => setSelectedMic(e.target.value)}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-sm text-zinc-100 outline-none focus:border-indigo-500"
-                  >
-                    <option value="default">Padrão do Sistema</option>
-                    {availableDevices.filter(d => d.kind === 'audioinput').map(d => (
-                       <option key={d.deviceId} value={d.deviceId}>{d.label || 'Microfone'}</option>
-                    ))}
-                  </select>
-               </div>
-               
-               <div>
-                  <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2 block">Saída de Áudio</label>
-                  <select 
-                    value={selectedSpeaker} 
-                    onChange={e => setSelectedSpeaker(e.target.value)}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-sm text-zinc-100 outline-none focus:border-indigo-500"
-                  >
-                    <option value="default">Padrão do Sistema</option>
-                    {availableDevices.filter(d => d.kind === 'audiooutput').map(d => (
-                       <option key={d.deviceId} value={d.deviceId}>{d.label || 'Alto-falante'}</option>
-                    ))}
-                  </select>
-               </div>
-
-               <div>
-                  <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2 block">Volume da Chamada ({Math.round(callVolume * 100)}%)</label>
-                  <input 
-                    type="range" 
-                    min="0" max="2" step="0.1" 
-                    value={callVolume} 
-                    onChange={e => setCallVolume(parseFloat(e.target.value))}
-                    className="w-full h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer" 
-                  />
-               </div>
-
-               <div>
-                  <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2 block">Qualidade do Compartilhamento</label>
-                  <select 
-                    value={screenQuality} 
-                    onChange={e => setScreenQuality(e.target.value as any)}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-sm text-zinc-100 outline-none focus:border-indigo-500"
-                  >
-                    <option value="720p30">720p a 30 FPS</option>
-                    <option value="720p60">720p a 60 FPS</option>
-                    <option value="1080p30">1080p a 30 FPS</option>
-                    <option value="1080p60">1080p a 60 FPS</option>
-                  </select>
-               </div>
-
-               <div>
-                  <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2 block">Qualidade de Áudio</label>
-                  <select 
-                    value={audioQuality} 
-                    onChange={e => setAudioQuality(e.target.value as any)}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-sm text-zinc-100 outline-none focus:border-indigo-500"
-                  >
-                    <option value="low">Baixa</option>
-                    <option value="normal">Normal</option>
-                    <option value="ultra">Ultra (Alta Fidelidade)</option>
-                    <option value="lossless">Sem Perdas (Estéreo Raw)</option>
-                  </select>
-               </div>
-
-               <div className="flex items-center justify-between pt-2">
-                 <div>
-                   <p className="text-sm font-semibold text-zinc-100">Supressão de Ruído</p>
-                   <p className="text-xs text-zinc-500 mt-0.5">Filtra sons de fundo</p>
-                 </div>
-                 <button 
-                    onClick={() => setNoiseSuppression(!noiseSuppression)}
-                    className={`w-11 h-6 rounded-full transition-colors relative ${noiseSuppression ? 'bg-indigo-500' : 'bg-zinc-700'}`}
-                 >
-                    <span className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform ${noiseSuppression ? 'translate-x-5' : 'translate-x-0'}`} />
-                 </button>
-               </div>
-             </div>
+    <div ref={containerRef} className="absolute inset-0 bg-[#0a0a0a] z-[100] flex flex-col overflow-hidden font-sans text-white h-[100dvh]">
+      {/* Top Bar */}
+      <div className="h-16 shrink-0 border-b border-white/5 bg-[#111111]/80 backdrop-blur-xl flex items-center justify-between px-4 sm:px-6 z-20 relative shadow-[0_4px_30px_rgba(0,0,0,0.5)]">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500/20 to-purple-500/20 flex items-center justify-center shrink-0 border border-white/10 shadow-inner">
+            {isGroup ? <User className="w-5 h-5 text-indigo-400" /> : <Phone className="w-5 h-5 text-indigo-400" />}
+          </div>
+          <div className="min-w-0">
+            <h2 className="text-white font-semibold text-sm sm:text-base truncate tracking-wide">
+              {isGroup ? conversation.name || 'Grupo' : conversation.displayName || conversation.name}
+            </h2>
+            <div className="flex items-center gap-1.5 mt-0.5">
+              <span className={`w-1.5 h-1.5 rounded-full animate-pulse ${getCallStatusColor().split(' ')[0]}`} />
+              <span className={`text-[11px] font-medium tracking-widest uppercase ${getCallStatusColor().split(' ')[1]}`}>
+                {getCallStatusLabel()}
+              </span>
+            </div>
           </div>
         </div>
+
+        <div className="flex items-center gap-2">
+          {callState === 'failed' && (
+            <button
+              onClick={retryConnection}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500/20 hover:bg-red-500/30 text-red-300 rounded-full border border-red-500/40 text-xs font-semibold transition-all hover:scale-105 active:scale-95"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              Reconectar
+            </button>
+          )}
+
+          {isConnected && (
+            <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-green-500/10 text-green-400 rounded-full border border-green-500/20 shadow-[0_0_15px_rgba(34,197,94,0.1)]">
+              <Wifi className="w-3.5 h-3.5" />
+              <span className="text-xs font-semibold uppercase tracking-wider">Qualidade Estável</span>
+            </div>
+          )}
+
+          <button
+            onClick={() => setShowSettings(!showSettings)}
+            className={`w-10 h-10 flex items-center justify-center rounded-full transition-all duration-300 ${
+              showSettings ? 'bg-indigo-500 text-white shadow-[0_0_15px_rgba(99,102,241,0.4)]' : 'bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white'
+            }`}
+            title="Configurações de Áudio e Vídeo"
+          >
+            <Settings2 className="w-5 h-5" />
+          </button>
+
+          <button
+            onClick={toggleFullscreen}
+            className="w-10 h-10 hidden sm:flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white transition-all duration-300"
+            title={isFullscreen ? 'Sair da Tela Cheia' : 'Tela Cheia'}
+          >
+            {isFullscreen ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
+          </button>
+        </div>
+      </div>
+
+      {/* Error alert banner */}
+      {errorMessage && (
+        <div className="bg-red-500/10 border-b border-red-500/20 px-4 py-2 flex items-center justify-between text-xs text-red-300 z-20">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+            <span>{errorMessage}</span>
+          </div>
+          <button onClick={retryConnection} className="underline hover:text-white font-medium ml-2 shrink-0">
+            Tentar novamente
+          </button>
+        </div>
       )}
+
+      {/* Main Grid */}
+      <div className="flex-1 relative overflow-hidden bg-black/40">
+        <div className="absolute inset-0 bg-gradient-to-b from-[#111111]/50 to-[#0a0a0a] pointer-events-none" />
+
+        <div
+          className={`absolute inset-0 p-4 sm:p-6 grid gap-4 transition-all duration-500 ${
+            remoteParticipants.length === 0
+              ? 'grid-cols-1'
+              : remoteParticipants.length === 1 && !hasVideo && !activeScreenShares.size
+              ? 'grid-cols-1 sm:grid-cols-2'
+              : remoteParticipants.length === 1
+              ? 'grid-cols-1 sm:grid-cols-2'
+              : remoteParticipants.length === 2
+              ? 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3'
+              : remoteParticipants.length <= 4
+              ? 'grid-cols-2'
+              : 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4'
+          }`}
+        >
+          {/* Remote Participants */}
+          {remoteParticipants.map((rp) => (
+            <div key={rp.id} className="w-full h-full min-h-[150px]">
+              <ParticipantView
+                participant={rp}
+                volume={audioVolume}
+                selectedSpeaker={selectedSpeaker}
+                isDeafened={isDeafened}
+              />
+            </div>
+          ))}
+
+          {/* Local Participant */}
+          <div
+            className={`w-full h-full min-h-[150px] transition-all duration-500 ${
+              remoteParticipants.length === 1 && hasVideo ? 'sm:col-span-1' : ''
+            }`}
+          >
+            <ParticipantView
+              isLocal
+              participant={{
+                id: currentUser._id,
+                displayName: currentUser.displayName,
+                avatarUrl: currentUser.avatarUrl,
+                seed: currentUser.username,
+                bannerUrl: currentUser.bannerUrl,
+                stream: localStream
+              }}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Bottom Controls */}
+      <div className="shrink-0 bg-gradient-to-t from-[#0a0a0a] via-[#111111]/90 to-transparent pt-8 pb-6 px-4 flex flex-col items-center gap-4 relative z-30">
+        {showSettings && (
+          <div className="w-full max-w-2xl bg-[#1a1a1a]/95 backdrop-blur-xl border border-white/10 rounded-2xl p-5 shadow-2xl mb-2 animate-in slide-in-from-bottom-4 fade-in duration-300">
+            <div className="flex justify-between items-center mb-5 pb-3 border-b border-white/5">
+              <h3 className="font-semibold text-white/90 text-sm tracking-wide uppercase">Configurações de Áudio e Vídeo</h3>
+              <button onClick={() => setShowSettings(false)} className="text-zinc-500 hover:text-white transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5">
+              {/* Mic Selection */}
+              <div className="space-y-2">
+                <label className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider ml-1">Microfone</label>
+                <div className="relative">
+                  <select
+                    value={selectedMic}
+                    onChange={(e) => setSelectedMic(e.target.value)}
+                    className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white/90 appearance-none focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 transition-all hover:bg-black/60"
+                  >
+                    {devices.filter((d) => d.kind === 'audioinput').length === 0 && <option value="default">Microfone Padrão</option>}
+                    {devices
+                      .filter((d) => d.kind === 'audioinput')
+                      .map((d) => (
+                        <option key={d.deviceId} value={d.deviceId}>
+                          {d.label || 'Microfone Desconhecido'}
+                        </option>
+                      ))}
+                  </select>
+                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 pointer-events-none" />
+                </div>
+              </div>
+
+              {/* Speaker Selection */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider ml-1">Saída de Áudio</label>
+                  {!sinkIdSupported && <span className="text-[10px] text-amber-400/80">Padrão do SO</span>}
+                </div>
+                <div className="relative">
+                  <select
+                    value={selectedSpeaker}
+                    onChange={(e) => setSelectedSpeaker(e.target.value)}
+                    disabled={!sinkIdSupported && devices.filter((d) => d.kind === 'audiooutput').length === 0}
+                    className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white/90 appearance-none focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 transition-all hover:bg-black/60 disabled:opacity-60"
+                  >
+                    {devices.filter((d) => d.kind === 'audiooutput').length === 0 && <option value="default">Padrão do Sistema</option>}
+                    {devices
+                      .filter((d) => d.kind === 'audiooutput')
+                      .map((d) => (
+                        <option key={d.deviceId} value={d.deviceId}>
+                          {d.label || 'Saída Desconhecida'}
+                        </option>
+                      ))}
+                  </select>
+                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 pointer-events-none" />
+                </div>
+              </div>
+
+              {/* Camera Selection */}
+              <div className="space-y-2">
+                <label className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider ml-1">Câmera</label>
+                <div className="relative">
+                  <select
+                    value={selectedCamera}
+                    onChange={(e) => setSelectedCamera(e.target.value)}
+                    className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white/90 appearance-none focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 transition-all hover:bg-black/60"
+                  >
+                    {devices.filter((d) => d.kind === 'videoinput').length === 0 && <option value="default">Câmera Padrão</option>}
+                    {devices
+                      .filter((d) => d.kind === 'videoinput')
+                      .map((d) => (
+                        <option key={d.deviceId} value={d.deviceId}>
+                          {d.label || 'Câmera Desconhecida'}
+                        </option>
+                      ))}
+                  </select>
+                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 pointer-events-none" />
+                </div>
+              </div>
+
+              {/* Master Volume */}
+              <div className="space-y-2">
+                <label className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider ml-1 flex items-center justify-between">
+                  Volume Geral
+                  <span className="text-indigo-400">{Math.round(audioVolume * 100)}%</span>
+                </label>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                  value={audioVolume}
+                  onChange={(e) => setAudioVolume(parseFloat(e.target.value))}
+                  className="w-full accent-indigo-500 h-2 bg-white/10 rounded-full appearance-none cursor-pointer mt-2"
+                />
+              </div>
+
+              {/* Audio Quality */}
+              <div className="space-y-2">
+                <label className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider ml-1">Qualidade de Áudio</label>
+                <div className="relative">
+                  <select
+                    value={audioQuality}
+                    onChange={(e) => setAudioQuality(e.target.value as any)}
+                    className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white/90 appearance-none focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 transition-all hover:bg-black/60"
+                  >
+                    <option value="low">Baixa (Economia de Dados - 16 kbps)</option>
+                    <option value="normal">Padrão (32 kbps)</option>
+                    <option value="ultra">Alta (64 kbps)</option>
+                    <option value="lossless">Estúdio (128 kbps)</option>
+                  </select>
+                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 pointer-events-none" />
+                </div>
+              </div>
+
+              {/* Noise Suppression Toggle */}
+              <div className="space-y-2">
+                <label className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider ml-1">Supressão de Ruído</label>
+                <button
+                  type="button"
+                  onClick={() => setNoiseSuppression(!noiseSuppression)}
+                  className={`w-full py-2.5 px-3 rounded-xl border text-sm font-medium transition-all flex items-center justify-center gap-2 ${
+                    noiseSuppression
+                      ? 'bg-indigo-600/30 border-indigo-500/50 text-indigo-200'
+                      : 'bg-black/40 border-white/10 text-zinc-400'
+                  }`}
+                >
+                  <span>{noiseSuppression ? 'Ativada (Filtro IA)' : 'Desativada (Som Natural)'}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Action Buttons Bar */}
+        <div className="flex items-center gap-3 sm:gap-5">
+          {/* Mute Mic */}
+          <button
+            onClick={toggleMute}
+            className={`w-12 h-12 sm:w-14 sm:h-14 rounded-full flex items-center justify-center transition-all duration-300 shadow-xl ${
+              isMuted
+                ? 'bg-red-500/20 text-red-400 border-2 border-red-500/50 hover:bg-red-500/30'
+                : 'bg-white/10 text-white hover:bg-white/20 border border-white/5 backdrop-blur-md'
+            }`}
+            title={isMuted ? 'Desmutar Microfone' : 'Mutar Microfone'}
+          >
+            {isMuted ? <MicOff className="w-5 h-5 sm:w-6 sm:h-6" /> : <Mic className="w-5 h-5 sm:w-6 sm:h-6" />}
+          </button>
+
+          {/* Deafen (Mute Incoming Audio) */}
+          <button
+            onClick={toggleDeafen}
+            className={`w-12 h-12 sm:w-14 sm:h-14 rounded-full flex items-center justify-center transition-all duration-300 shadow-xl ${
+              isDeafened
+                ? 'bg-amber-500/20 text-amber-400 border-2 border-amber-500/50 hover:bg-amber-500/30'
+                : 'bg-white/10 text-white hover:bg-white/20 border border-white/5 backdrop-blur-md'
+            }`}
+            title={isDeafened ? 'Reativar Áudio Recebido' : 'Silenciar Chamada (Ensurdecer)'}
+          >
+            {isDeafened ? <VolumeX className="w-5 h-5 sm:w-6 sm:h-6" /> : <Volume2 className="w-5 h-5 sm:w-6 sm:h-6" />}
+          </button>
+
+          {/* Toggle Camera */}
+          <button
+            onClick={toggleVideo}
+            className={`w-12 h-12 sm:w-14 sm:h-14 rounded-full flex items-center justify-center transition-all duration-300 shadow-xl ${
+              !hasVideo
+                ? 'bg-red-500/20 text-red-400 border-2 border-red-500/50 hover:bg-red-500/30'
+                : 'bg-white/10 text-white hover:bg-white/20 border border-white/5 backdrop-blur-md'
+            }`}
+            title={hasVideo ? 'Desligar Câmera' : 'Ligar Câmera'}
+          >
+            {!hasVideo ? <CameraOff className="w-5 h-5 sm:w-6 sm:h-6" /> : <Camera className="w-5 h-5 sm:w-6 sm:h-6" />}
+          </button>
+
+          {/* Screen Share (Desktop / Supported browsers) */}
+          {typeof navigator !== 'undefined' && typeof navigator.mediaDevices?.getDisplayMedia === 'function' && (
+            <button
+              onClick={handleToggleScreenShare}
+              className={`w-12 h-12 sm:w-14 sm:h-14 rounded-full flex items-center justify-center transition-all duration-300 shadow-xl hidden md:flex ${
+                isSharingScreen
+                  ? 'bg-indigo-500 text-white shadow-[0_0_20px_rgba(99,102,241,0.5)]'
+                  : 'bg-white/10 text-white hover:bg-white/20 border border-white/5 backdrop-blur-md'
+              }`}
+              title={isSharingScreen ? 'Parar Compartilhamento de Tela' : 'Compartilhar Tela com Áudio'}
+            >
+              <MonitorUp className="w-5 h-5 sm:w-6 sm:h-6" />
+            </button>
+          )}
+
+          {/* End Call */}
+          <button
+            onClick={onEndCall}
+            className="w-16 h-16 sm:w-20 sm:h-20 bg-red-600 hover:bg-red-500 text-white rounded-full flex items-center justify-center transition-all duration-300 hover:scale-105 active:scale-95 shadow-[0_0_25px_rgba(220,38,38,0.4)] ml-2 sm:ml-4 border-4 border-[#0a0a0a]"
+            title="Encerrar Chamada"
+          >
+            <PhoneOff className="w-6 h-6 sm:w-8 sm:h-8" />
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

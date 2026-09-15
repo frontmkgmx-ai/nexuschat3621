@@ -1,112 +1,196 @@
-import { useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { callApi } from '../services/callApi';
 
-const safeCall = async (apiCall: Promise<any>) => {
-  try {
-    return await apiCall;
-  } catch (e) {
-    console.warn("Call API failed, continuing anyway", e);
-    return null;
-  }
-};
+export type AudioQualityType = 'low' | 'normal' | 'ultra' | 'lossless';
 
-export function useCallControls(callId: string) {
+export interface UseCallControlsReturn {
+  devices: MediaDeviceInfo[];
+  selectedMic: string;
+  selectedCamera: string;
+  selectedSpeaker: string;
+  audioVolume: number;
+  noiseSuppression: boolean;
+  audioQuality: AudioQualityType;
+  hasVideo: boolean;
+  isMuted: boolean;
+  isSharingScreen: boolean;
+  showSettings: boolean;
+  isDeafened: boolean;
+  sinkIdSupported: boolean;
+  setSelectedMic: (deviceId: string) => void;
+  setSelectedCamera: (deviceId: string) => void;
+  setSelectedSpeaker: (deviceId: string) => void;
+  setAudioVolume: (volume: number) => void;
+  setNoiseSuppression: (enabled: boolean) => void;
+  setAudioQuality: (quality: AudioQualityType) => void;
+  setIsSharingScreen: (isSharing: boolean) => void;
+  setShowSettings: (show: boolean) => void;
+  toggleVideo: () => void;
+  toggleMute: () => void;
+  toggleDeafen: () => void;
+  refreshDevices: () => Promise<MediaDeviceInfo[]>;
+  // API compatibility methods
+  acceptCall: (data?: any) => Promise<any>;
+  rejectCall: (data?: any) => Promise<any>;
+  endCall: (data?: any) => Promise<any>;
+  getStatus: () => Promise<any>;
+}
+
+export function useCallControls(
+  initialVideoOrCallId: boolean | string = false,
+  optionalCallId?: string
+): UseCallControlsReturn {
+  const initialVideo = typeof initialVideoOrCallId === 'boolean' ? initialVideoOrCallId : false;
+  const callId = typeof initialVideoOrCallId === 'string' ? initialVideoOrCallId : optionalCallId || '';
+
+  const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
+  const [selectedMic, setSelectedMic] = useState<string>('default');
+  const [selectedCamera, setSelectedCamera] = useState<string>('default');
+  const [selectedSpeaker, setSelectedSpeaker] = useState<string>('default');
   
-  // Basic Calls
+  const [audioVolume, setAudioVolume] = useState<number>(1.0);
+  const [noiseSuppression, setNoiseSuppression] = useState<boolean>(true);
+  const [audioQuality, setAudioQuality] = useState<AudioQualityType>('normal');
+  
+  const [hasVideo, setHasVideo] = useState<boolean>(initialVideo);
+  const [isMuted, setIsMuted] = useState<boolean>(false);
+  const [isDeafened, setIsDeafened] = useState<boolean>(false);
+  const [isSharingScreen, setIsSharingScreen] = useState<boolean>(false);
+  const [showSettings, setShowSettings] = useState<boolean>(false);
+  
+  const [sinkIdSupported, setSinkIdSupported] = useState<boolean>(false);
+  const isEnumerating = useRef(false);
+
+  // Check setSinkId support in current browser
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const audio = document.createElement('audio');
+      setSinkIdSupported(typeof (audio as any).setSinkId === 'function');
+    }
+  }, []);
+
+  // Device enumeration with labels when available
+  const refreshDevices = useCallback(async (): Promise<MediaDeviceInfo[]> => {
+    if (typeof navigator === 'undefined' || !navigator.mediaDevices?.enumerateDevices) {
+      return [];
+    }
+    if (isEnumerating.current) return devices;
+    isEnumerating.current = true;
+
+    try {
+      const deviceList = await navigator.mediaDevices.enumerateDevices();
+      setDevices(deviceList);
+
+      // Verify selected mic exists in current list
+      const audioInputs = deviceList.filter(d => d.kind === 'audioinput');
+      if (audioInputs.length > 0 && !audioInputs.some(d => d.deviceId === selectedMic)) {
+        setSelectedMic(audioInputs[0].deviceId || 'default');
+      }
+
+      // Verify selected camera exists
+      const videoInputs = deviceList.filter(d => d.kind === 'videoinput');
+      if (videoInputs.length > 0 && !videoInputs.some(d => d.deviceId === selectedCamera)) {
+        setSelectedCamera(videoInputs[0].deviceId || 'default');
+      }
+
+      // Verify selected speaker exists
+      const audioOutputs = deviceList.filter(d => d.kind === 'audiooutput');
+      if (audioOutputs.length > 0 && !audioOutputs.some(d => d.deviceId === selectedSpeaker)) {
+        setSelectedSpeaker(audioOutputs[0].deviceId || 'default');
+      }
+
+      return deviceList;
+    } catch (err) {
+      console.warn('Failed to enumerate media devices:', err);
+      return [];
+    } finally {
+      isEnumerating.current = false;
+    }
+  }, [selectedMic, selectedCamera, selectedSpeaker, devices]);
+
+  // Initial enumeration and listen for device plug/unplug
+  useEffect(() => {
+    refreshDevices();
+
+    if (typeof navigator !== 'undefined' && navigator.mediaDevices?.addEventListener) {
+      const handleDeviceChange = () => {
+        refreshDevices();
+      };
+      navigator.mediaDevices.addEventListener('devicechange', handleDeviceChange);
+      return () => {
+        navigator.mediaDevices.removeEventListener('devicechange', handleDeviceChange);
+      };
+    }
+  }, [refreshDevices]);
+
+  const toggleVideo = useCallback(() => {
+    setHasVideo(prev => !prev);
+  }, []);
+
+  const toggleMute = useCallback(() => {
+    setIsMuted(prev => !prev);
+  }, []);
+
+  const toggleDeafen = useCallback(() => {
+    setIsDeafened(prev => {
+      const next = !prev;
+      if (next) {
+        setIsMuted(true);
+      }
+      return next;
+    });
+  }, []);
+
+  // Backwards-compatible API helpers
   const acceptCall = useCallback(async (data?: any) => {
-    return safeCall(callApi.acceptCall(callId, data));
+    if (!callId) return null;
+    return callApi.acceptCall(callId, data);
   }, [callId]);
 
   const rejectCall = useCallback(async (data?: any) => {
-    return safeCall(callApi.rejectCall(callId, data));
+    if (!callId) return null;
+    return callApi.rejectCall(callId, data);
   }, [callId]);
 
   const endCall = useCallback(async (data?: any) => {
-    return safeCall(callApi.endCall(callId, data));
+    if (!callId) return null;
+    return callApi.endCall(callId, data);
   }, [callId]);
-  
+
   const getStatus = useCallback(async () => {
-    return safeCall(callApi.getCallStatus(callId));
-  }, [callId]);
-
-  // Audio Controls
-  const muteAudio = useCallback(async () => {
-    return safeCall(callApi.muteAudio(callId));
-  }, [callId]);
-
-  const unmuteAudio = useCallback(async () => {
-    return safeCall(callApi.unmuteAudio(callId));
-  }, [callId]);
-
-  const deafenAudio = useCallback(async () => {
-    return safeCall(callApi.deafenAudio(callId));
-  }, [callId]);
-
-  const undeafenAudio = useCallback(async () => {
-    return safeCall(callApi.undeafenAudio(callId));
-  }, [callId]);
-
-  // Video Controls
-  const enableVideo = useCallback(async () => {
-    return safeCall(callApi.enableVideo(callId));
-  }, [callId]);
-
-  const disableVideo = useCallback(async () => {
-    return safeCall(callApi.disableVideo(callId));
-  }, [callId]);
-
-  const switchCamera = useCallback(async () => {
-    return safeCall(callApi.switchCamera(callId));
-  }, [callId]);
-
-  // Quality settings
-  const setVideoQuality = useCallback(async (quality: 'low' | 'medium' | 'high' | '720p' | '1080p' | '1080p60') => {
-    let call;
-    switch(quality) {
-      case 'low': call = callApi.setVideoLowQuality(callId); break;
-      case 'medium': call = callApi.setVideoMediumQuality(callId); break;
-      case 'high': call = callApi.setVideoHighQuality(callId); break;
-      case '720p': call = callApi.setVideo720p(callId); break;
-      case '1080p': call = callApi.setVideo1080p(callId); break;
-      case '1080p60': call = callApi.setVideo1080p60(callId); break;
-    }
-    return safeCall(call!);
-  }, [callId]);
-
-  // Screen Share Setting
-  const startScreenShare = useCallback(async () => {
-    return safeCall(callApi.startScreenShare(callId));
-  }, [callId]);
-
-  const stopScreenShare = useCallback(async () => {
-    return safeCall(callApi.stopScreenShare(callId));
-  }, [callId]);
-
-  // Recording
-  const startRecording = useCallback(async () => {
-    return safeCall(callApi.startRecording(callId));
-  }, [callId]);
-
-  const stopRecording = useCallback(async () => {
-    return safeCall(callApi.stopRecording(callId));
+    if (!callId) return null;
+    return callApi.getCallStatus(callId);
   }, [callId]);
 
   return {
+    devices,
+    selectedMic,
+    selectedCamera,
+    selectedSpeaker,
+    audioVolume,
+    noiseSuppression,
+    audioQuality,
+    hasVideo,
+    isMuted,
+    isSharingScreen,
+    showSettings,
+    isDeafened,
+    sinkIdSupported,
+    setSelectedMic,
+    setSelectedCamera,
+    setSelectedSpeaker,
+    setAudioVolume,
+    setNoiseSuppression,
+    setAudioQuality,
+    setIsSharingScreen,
+    setShowSettings,
+    toggleVideo,
+    toggleMute,
+    toggleDeafen,
+    refreshDevices,
     acceptCall,
     rejectCall,
     endCall,
-    getStatus,
-    muteAudio,
-    unmuteAudio,
-    deafenAudio,
-    undeafenAudio,
-    enableVideo,
-    disableVideo,
-    switchCamera,
-    setVideoQuality,
-    startScreenShare,
-    stopScreenShare,
-    startRecording,
-    stopRecording,
+    getStatus
   };
 }

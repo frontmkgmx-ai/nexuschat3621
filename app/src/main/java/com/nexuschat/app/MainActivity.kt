@@ -1,6 +1,9 @@
 package com.nexuschat.app
 
+import android.Manifest
 import android.annotation.SuppressLint
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.webkit.ConsoleMessage
@@ -11,12 +14,54 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 
 class MainActivity : ComponentActivity() {
 
     private lateinit var webView: WebView
+
+    // Pending permission request from WebView
+    private var pendingPermissionRequest: PermissionRequest? = null
+
+    // Register Activity Result launcher for runtime camera and audio permissions
+    private val requestPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val audioGranted = permissions[Manifest.permission.RECORD_AUDIO] ?: false
+        val cameraGranted = permissions[Manifest.permission.CAMERA] ?: false
+
+        val currentRequest = pendingPermissionRequest
+        pendingPermissionRequest = null
+
+        if (currentRequest != null) {
+            val resourcesToGrant = mutableListOf<String>()
+            val requested = currentRequest.resources ?: emptyArray()
+
+            if (audioGranted && requested.contains(PermissionRequest.RESOURCE_AUDIO_CAPTURE)) {
+                resourcesToGrant.add(PermissionRequest.RESOURCE_AUDIO_CAPTURE)
+            }
+            if (cameraGranted && requested.contains(PermissionRequest.RESOURCE_VIDEO_CAPTURE)) {
+                resourcesToGrant.add(PermissionRequest.RESOURCE_VIDEO_CAPTURE)
+            }
+
+            if (resourcesToGrant.isNotEmpty()) {
+                currentRequest.grant(resourcesToGrant.toTypedArray())
+                Log.d(TAG, "Granted resources to WebView: $resourcesToGrant")
+            } else {
+                currentRequest.deny()
+                Log.w(TAG, "Denied all requested resources")
+                Toast.makeText(
+                    this,
+                    "Permissões de microfone/câmera são necessárias para a chamada.",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
+    }
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -93,7 +138,73 @@ class MainActivity : ComponentActivity() {
 
             webChromeClient = object : WebChromeClient() {
                 override fun onPermissionRequest(request: PermissionRequest?) {
-                    request?.grant(request.resources)
+                    if (request == null) return
+
+                    val origin = request.origin
+                    val host = origin?.host ?: ""
+
+                    // Validate origin to prevent unauthorized capture requests
+                    val isAllowedOrigin = host == "localhost" ||
+                            host == "127.0.0.1" ||
+                            host.endsWith("cysmk.online") ||
+                            host.endsWith("pages.dev")
+
+                    if (!isAllowedOrigin) {
+                        Log.w(TAG, "Rejecting permission request from untrusted origin: $origin")
+                        request.deny()
+                        return
+                    }
+
+                    val requestedResources = request.resources ?: emptyArray()
+                    val permissionsNeeded = mutableListOf<String>()
+
+                    if (requestedResources.contains(PermissionRequest.RESOURCE_AUDIO_CAPTURE)) {
+                        if (ContextCompat.checkSelfPermission(
+                                this@MainActivity,
+                                Manifest.permission.RECORD_AUDIO
+                            ) != PackageManager.PERMISSION_GRANTED
+                        ) {
+                            permissionsNeeded.add(Manifest.permission.RECORD_AUDIO)
+                        }
+                    }
+
+                    if (requestedResources.contains(PermissionRequest.RESOURCE_VIDEO_CAPTURE)) {
+                        if (ContextCompat.checkSelfPermission(
+                                this@MainActivity,
+                                Manifest.permission.CAMERA
+                            ) != PackageManager.PERMISSION_GRANTED
+                        ) {
+                            permissionsNeeded.add(Manifest.permission.CAMERA)
+                        }
+                    }
+
+                    // On Android 12+, Bluetooth connect for headsets
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        if (ContextCompat.checkSelfPermission(
+                                this@MainActivity,
+                                Manifest.permission.BLUETOOTH_CONNECT
+                            ) != PackageManager.PERMISSION_GRANTED
+                        ) {
+                            permissionsNeeded.add(Manifest.permission.BLUETOOTH_CONNECT)
+                        }
+                    }
+
+                    if (permissionsNeeded.isNotEmpty()) {
+                        // Keep reference to request and ask OS for permissions
+                        pendingPermissionRequest = request
+                        requestPermissionLauncher.launch(permissionsNeeded.toTypedArray())
+                    } else {
+                        // All requested permissions already granted at OS level
+                        val resourcesToGrant = mutableListOf<String>()
+                        if (requestedResources.contains(PermissionRequest.RESOURCE_AUDIO_CAPTURE)) {
+                            resourcesToGrant.add(PermissionRequest.RESOURCE_AUDIO_CAPTURE)
+                        }
+                        if (requestedResources.contains(PermissionRequest.RESOURCE_VIDEO_CAPTURE)) {
+                            resourcesToGrant.add(PermissionRequest.RESOURCE_VIDEO_CAPTURE)
+                        }
+                        request.grant(resourcesToGrant.toTypedArray())
+                        Log.d(TAG, "Granted requested resources: $resourcesToGrant")
+                    }
                 }
 
                 override fun onConsoleMessage(consoleMessage: ConsoleMessage?): Boolean {
@@ -118,8 +229,24 @@ class MainActivity : ComponentActivity() {
         webView.loadUrl("https://localhost/index.html")
     }
 
+    override fun onResume() {
+        super.onResume()
+        webView.onResume()
+    }
+
+    override fun onPause() {
+        webView.onPause()
+        super.onPause()
+    }
+
     override fun onDestroy() {
+        pendingPermissionRequest?.deny()
+        pendingPermissionRequest = null
         webView.destroy()
         super.onDestroy()
+    }
+
+    companion object {
+        private const val TAG = "MainActivity"
     }
 }

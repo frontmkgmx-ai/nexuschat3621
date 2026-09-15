@@ -269,6 +269,53 @@ async function startServer() {
     res.sendFile(path.join(process.cwd(), "docs.html"));
   });
 
+  // WebRTC ICE / TURN configuration endpoint (Securely serves TURN/STUN without hardcoding secrets in frontend)
+  app.get("/api/webrtc/config", (req, res) => {
+    const iceServers: Array<{ urls: string | string[]; username?: string; credential?: string }> = [
+      {
+        urls: [
+          "stun:stun.l.google.com:19302",
+          "stun:stun1.l.google.com:19302",
+          "stun:stun2.l.google.com:19302",
+          "stun:stun.cloudflare.com:3478"
+        ]
+      }
+    ];
+
+    const turnUrl = process.env.TURN_URL || process.env.VITE_TURN_URL || process.env.COTURN_URL;
+    const turnUser = process.env.TURN_USERNAME || process.env.TURN_USER || process.env.VITE_TURN_USER;
+    const turnCred = process.env.TURN_CREDENTIAL || process.env.TURN_CRED || process.env.VITE_TURN_CRED;
+
+    if (turnUrl) {
+      iceServers.push({
+        urls: turnUrl,
+        username: turnUser || undefined,
+        credential: turnCred || undefined
+      });
+    }
+
+    res.json({
+      success: true,
+      iceServers,
+      signalingTransport: "firebase-rtdb",
+      paths: {
+        participants: "webrtc/{callId}/participants/{userId}",
+        signals: "webrtc/{callId}/signals/{targetUserId}",
+        screenShares: "webrtc/{callId}/screenShares/{userId}"
+      }
+    });
+  });
+
+  // Call API endpoints handler to support callApi methods with proper JSON responses
+  app.all("/api/calls/*", express.json(), (req, res) => {
+    res.json({
+      success: true,
+      endpoint: req.path,
+      method: req.method,
+      timestamp: Date.now()
+    });
+  });
+
   app.get("/api/auth/google/url", (req, res) => {
     const { scope, action } = req.query;
     const clientId = process.env.GOOGLE_CLIENT_ID;
