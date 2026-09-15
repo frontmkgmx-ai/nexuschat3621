@@ -6,7 +6,7 @@ import { Server as SocketIOServer } from "socket.io";
 import { createServer as createHttpServer } from "http";
 import dotenv from "dotenv";
 import cors from "cors";
-import { AccessToken, AgentDispatchClient } from "livekit-server-sdk";
+import { AccessToken, AgentDispatchClient, RoomServiceClient } from "livekit-server-sdk";
 
 dotenv.config();
 
@@ -308,6 +308,8 @@ async function startServer() {
   });
 
   // LiveKit token endpoint
+  const pendingDispatches = new Set<string>();
+
   app.get("/api/livekit/token", async (req, res) => {
     try {
       let roomName = (req.query.room as string) || "nexus-ai-room";
@@ -337,12 +339,37 @@ async function startServer() {
       at.addGrant({ roomJoin: true, room: roomName, canPublish: true, canSubscribe: true });
 
       const token = await at.toJwt();
-      try {
-        const agentClient = new AgentDispatchClient(wsUrl, apiKey, apiSecret);
-        await agentClient.createDispatch(roomName, "meu-agente");
-      } catch (err) {
-        console.error("LiveKit agent dispatch error:", err);
+      
+      if (!pendingDispatches.has(roomName)) {
+        pendingDispatches.add(roomName);
+        try {
+          const roomService = new RoomServiceClient(wsUrl, apiKey, apiSecret);
+          let hasMyAgent = false;
+          try {
+             const participants = await roomService.listParticipants(roomName);
+             for (const p of participants) {
+                 if (p.name === "meu-agente") {
+                     hasMyAgent = true;
+                 } else if (p.kind === 4) {
+                     // 4 is AGENT. Kick any other agent that auto-joined
+                     console.log("Kicking auto-joined agent:", p.identity);
+                     await roomService.removeParticipant(roomName, p.identity);
+                 }
+             }
+          } catch(e) {
+             // Room might not exist yet
+          }
+          if (!hasMyAgent) {
+             const agentClient = new AgentDispatchClient(wsUrl, apiKey, apiSecret);
+             await agentClient.createDispatch(roomName, "meu-agente");
+          }
+        } catch (err) {
+          console.error("LiveKit agent dispatch error:", err);
+        } finally {
+          setTimeout(() => pendingDispatches.delete(roomName), 5000);
+        }
       }
+    
       res.json({ token, url: wsUrl });
     } catch (error: any) {
       console.error("LiveKit token error:", error);

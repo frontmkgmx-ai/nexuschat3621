@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   LiveKitRoom,
   RoomAudioRenderer,
@@ -20,8 +20,12 @@ export default function NexusAI({ currentUser, onClose }: { currentUser: any, on
   const [token, setToken] = useState<string | null>(null);
   const [errorState, setErrorState] = useState<boolean>(false);
   const [url, setUrl] = useState<string | null>(null);
+  const isConnecting = useRef(false);
 
   const connectToAI = async () => {
+    if (isConnecting.current) return;
+    isConnecting.current = true;
+
     setErrorState(false);
     try {
       const res = await fetch(`/api/livekit/token?room=nexus-ai-${currentUser._id}&name=${encodeURIComponent(currentUser.username)}`);
@@ -33,6 +37,8 @@ export default function NexusAI({ currentUser, onClose }: { currentUser: any, on
     } catch (err: any) {
       toast.error(err.message || 'Erro ao conectar ao Agente AI');
       setErrorState(true);
+    } finally {
+      isConnecting.current = false;
     }
   };
 
