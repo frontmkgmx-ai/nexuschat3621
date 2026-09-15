@@ -47,6 +47,7 @@ import Inpage from "./Inpage";
 import TermsAndPrivacy from "./TermsAndPrivacy";
 import CommunitiesTab from "./CommunitiesTab";
 import ScanQRCodeView from "./ScanQRCodeView";
+import NexusAI from "./NexusAI";
 
 
 type InternalTab = "CHATS" | "CONTACTS" | "GROUPS" | "SETTINGS" | "PROFILE" | "INPAGE" | "COMMUNITIES" | "NEWS" | "QRCODE" | "NEXUS_AI";
