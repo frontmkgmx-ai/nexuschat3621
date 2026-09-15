@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import Login from "./components/Login";
 import Sidebar from "./components/Sidebar";
+import NexusAI from "./components/NexusAI";
 import ChatWindow from "./components/ChatWindow";
 import HomeOne from "./components/HomeOne";
 import Terms from "./components/Terms";
@@ -63,6 +64,7 @@ export default function App() {
   });
 
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showNexusAI, setShowNexusAI] = useState(false);
   const [isFirebaseReady, setIsFirebaseReady] = useState(false);
 
   const saveUserLocally = (user: any) => {
@@ -335,16 +337,23 @@ export default function App() {
           selectedConvo={selectedConvo}
           onSelectConvo={setSelectedConvo}
           onLogout={handleLogout}
-          isMobileHidden={!!selectedConvo}
+          isMobileHidden={!!selectedConvo || showNexusAI}
           onOpenProfile={setPublicProfileUser}
+          onOpenNexusAI={() => setShowNexusAI(true)}
         />
-        <ChatWindow 
-          currentUser={currentUser} 
-          conversation={selectedConvo} 
-          isMobileHidden={!selectedConvo}
-          onBack={() => setSelectedConvo(null)}
-          onOpenProfile={setPublicProfileUser}
-        />
+        {showNexusAI ? (
+          <div className="flex flex-1 flex-col h-full relative overflow-hidden w-full min-w-0 bg-zinc-950 md:border-l md:border-zinc-800">
+            <NexusAI currentUser={currentUser} onClose={() => setShowNexusAI(false)} />
+          </div>
+        ) : (
+          <ChatWindow 
+            currentUser={currentUser} 
+            conversation={selectedConvo} 
+            isMobileHidden={!selectedConvo}
+            onBack={() => setSelectedConvo(null)}
+            onOpenProfile={setPublicProfileUser}
+          />
+        )}
          {publicProfileUser && (
            <UserProfileModal 
               userId={publicProfileUser} 

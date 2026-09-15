@@ -47,7 +47,7 @@ import Inpage from "./Inpage";
 import TermsAndPrivacy from "./TermsAndPrivacy";
 import CommunitiesTab from "./CommunitiesTab";
 import ScanQRCodeView from "./ScanQRCodeView";
-import NexusAI from "./NexusAI";
+
 
 type InternalTab = "CHATS" | "CONTACTS" | "GROUPS" | "SETTINGS" | "PROFILE" | "INPAGE" | "COMMUNITIES" | "NEWS" | "QRCODE" | "NEXUS_AI";
 
@@ -60,6 +60,7 @@ export default function Sidebar({
   onLogout,
   isMobileHidden,
   onOpenProfile,
+  onOpenNexusAI,
 }: {
   currentUser: any;
   selectedConvo: any;
@@ -67,6 +68,7 @@ export default function Sidebar({
   onLogout: () => void;
   isMobileHidden?: boolean;
   onOpenProfile?: (userId: string) => void;
+  onOpenNexusAI?: () => void;
 }) {
   const [activeTab, setActiveTab] = useState<InternalTab>("CHATS");
   const [settingsView, setSettingsView] = useState<"MENU" | "ACCOUNT" | "PRIVACY" | "AUDIO_VIDEO" | "BACKUPS" | "TERMS">("MENU");
@@ -696,7 +698,7 @@ export default function Sidebar({
         </div>
 
         <div className="flex-1 flex flex-col gap-4 w-full px-3">
-          <NavRailItem icon={<Bot className={`w-6 h-6 ${activeTab === 'NEXUS_AI' ? 'text-indigo-400' : 'text-purple-400'}`} />} label="Nexus AI" active={activeTab === "NEXUS_AI"} onClick={() => setActiveTab("NEXUS_AI")} />
+          <NavRailItem icon={<Bot className={`w-6 h-6 ${activeTab === 'NEXUS_AI' ? 'text-indigo-400' : 'text-purple-400'}`} />} label="Nexus AI" active={activeTab === "NEXUS_AI"} onClick={() => { if (onOpenNexusAI) onOpenNexusAI(); }} />
           <NavRailItem icon={<MessageCircle className="w-6 h-6" />} label="Chats" active={activeTab === "CHATS"} onClick={() => setActiveTab("CHATS")} />
           <NavRailItem icon={<Users className="w-6 h-6" />} label="Contatos" active={activeTab === "CONTACTS"} onClick={() => setActiveTab("CONTACTS")} />
           <NavRailItem icon={<CircleDashed className="w-6 h-6" />} label="Status" active={activeTab === "INPAGE"} onClick={() => setActiveTab("INPAGE")} />
@@ -931,7 +933,7 @@ export default function Sidebar({
               </div>
               <div className="absolute bottom-6 right-6 z-50 flex flex-col gap-3">
                 <button 
-                  onClick={() => setActiveTab("NEXUS_AI")}
+                  onClick={() => { if (onOpenNexusAI) onOpenNexusAI(); }}
                   className="w-14 h-14 rounded-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white flex items-center justify-center shadow-lg shadow-purple-500/30 hover:scale-105 active:scale-95 transition-all md:hidden"
                 >
                    <Bot className="w-7 h-7" />

@@ -6,7 +6,7 @@ import { Server as SocketIOServer } from "socket.io";
 import { createServer as createHttpServer } from "http";
 import dotenv from "dotenv";
 import cors from "cors";
-import { AccessToken } from "livekit-server-sdk";
+import { AccessToken, AgentDispatchClient } from "livekit-server-sdk";
 
 dotenv.config();
 
@@ -310,8 +310,16 @@ async function startServer() {
   // LiveKit token endpoint
   app.get("/api/livekit/token", async (req, res) => {
     try {
-      const roomName = (req.query.room as string) || "nexus-ai-room";
-      const participantName = (req.query.name as string) || "user-" + Math.floor(Math.random() * 10000);
+      let roomName = (req.query.room as string) || "nexus-ai-room";
+      let participantName = (req.query.name as string) || "user-" + Math.floor(Math.random() * 10000);
+      
+      // Basic validation
+      if (!roomName.startsWith("nexus-ai-") || roomName.length > 50) {
+          return res.status(400).json({ error: "Invalid room name" });
+      }
+      if (participantName.length > 50) {
+          participantName = participantName.substring(0, 50);
+      }
       
       const apiKey = process.env.LIVEKIT_API_KEY;
       const apiSecret = process.env.LIVEKIT_API_SECRET;
@@ -329,6 +337,12 @@ async function startServer() {
       at.addGrant({ roomJoin: true, room: roomName, canPublish: true, canSubscribe: true });
 
       const token = await at.toJwt();
+      try {
+        const agentClient = new AgentDispatchClient(wsUrl, apiKey, apiSecret);
+        await agentClient.createDispatch(roomName, "meu-agente");
+      } catch (err) {
+        console.error("LiveKit agent dispatch error:", err);
+      }
       res.json({ token, url: wsUrl });
     } catch (error: any) {
       console.error("LiveKit token error:", error);
