@@ -79,10 +79,11 @@ export default function NexusAI({ currentUser, onClose }: { currentUser: any, on
             onError={(err: any) => { console.error("LiveKit Error:", err); if (err?.message?.includes("Client initiated disconnect") || err?.message?.includes("ParticipantDisconnected")) return; toast.error("Falha na conexão com o servidor AI."); setToken(null); setErrorState(true); }}
             onDisconnected={() => {
               setToken(null);
+              onClose();
             }}
           >
             <RoomAudioRenderer />
-            <AgentInterface />
+            <AgentInterface onClose={onClose} />
           </LiveKitRoom>
         )}
       </div>
@@ -90,7 +91,7 @@ export default function NexusAI({ currentUser, onClose }: { currentUser: any, on
   );
 }
 
-function AgentInterface() {
+function AgentInterface({ onClose }: { onClose: () => void }) {
   const { state, audioTrack } = useVoiceAssistant();
   const connectionState = useConnectionState();
   const tracks = useTracks([Track.Source.Camera]);
@@ -144,7 +145,7 @@ function AgentInterface() {
         </div>
 
         <div className="w-full flex justify-center mt-4 md:mt-6">
-          <CustomControlBar />
+          <CustomControlBar onClose={onClose} />
         </div>
       </div>
       
@@ -157,13 +158,13 @@ function AgentInterface() {
   );
 }
 
-function CustomControlBar() {
+function CustomControlBar({ onClose }: { onClose: () => void }) {
   return (
     <div className="flex items-center gap-4 bg-zinc-900 border border-zinc-800 rounded-full px-4 py-2 shadow-lg">
       <TrackToggle source={Track.Source.Microphone} className="p-3 bg-zinc-800 hover:bg-zinc-700 rounded-full transition-colors text-white" />
-      <DisconnectButton className="p-3 bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white rounded-full transition-colors font-medium flex items-center gap-2">
+      <button onClick={onClose} className="p-3 bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white rounded-full transition-colors font-medium flex items-center gap-2">
          Desconectar
-      </DisconnectButton>
+      </button>
     </div>
   );
 }

@@ -12,7 +12,7 @@ from livekit.agents import (
     inference,
     room_io,
 )
-from livekit.plugins import ai_coustics, anam
+from livekit.plugins import ai_coustics, anam, openai
 
 logger = logging.getLogger("agent")
 
@@ -36,7 +36,7 @@ class Assistant(Agent):
             instructions=textwrap.dedent(
                 """\
                 Você é o Nexus AI, um assistente inteligente de triagem, SAC e atendimento ao cliente. 
-                Você fala em português (Brasil).
+                Você fala EXCLUSIVAMENTE em português do Brasil (pt-BR) de forma natural e clara.
 
                 # Objetivo e Funções
                 - Fazer a triagem inicial de clientes e atendimento (SAC).
@@ -97,9 +97,7 @@ async def my_agent(ctx: JobContext):
         stt=inference.STT(model="assemblyai/universal-3-5-pro", language="pt"),
         # Text-to-speech (TTS) is your agent's voice, turning the LLM's text into speech that the user can hear
         # See all available models as well as voice selections at https://docs.livekit.io/agents/models/tts/
-        tts=inference.TTS(
-            model="fishaudio/s2.1-pro", voice="fa4c9eb3dccc4806b382b40d61c6b10a"
-        ),
+        tts=inference.TTS(model="cartesia/sonic", language="pt", voice="6a16c1f4-462b-44de-998d-ccdaa4125a0a"),
         turn_handling=TurnHandlingOptions(
             # The LiveKit turn detector determines when the user is done speaking and the agent should respond.
             # TurnDetector is an end-of-turn model that listens to the user's audio directly, combining
@@ -118,7 +116,7 @@ async def my_agent(ctx: JobContext):
         # emits inline delivery tags (emotion, pacing, non-verbal sounds) that the TTS renders and
         # the transcript never shows. Requires a TTS model that supports markup, such as the Fish
         # Audio model above.
-        expressive=True,
+        # expressive=True,
     )
 
     # Start the session, which initializes the voice pipeline and warms up the models
