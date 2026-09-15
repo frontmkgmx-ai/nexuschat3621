@@ -27,9 +27,12 @@ export default function CommunitiesTab({ currentUser, onSelectConvo }: Communiti
         
         setCreating(true);
         try {
-            const { uploadToR2 } = await import('../services/storageService');
-            const res = await uploadToR2({ file });
-            const url = res.file.url;
+            const { uploadGroupAvatar, uploadGroupBanner } = await import('../services/storageService');
+            const tempId = "temp-" + Date.now();
+            const res = type === 'avatar' 
+                ? await uploadGroupAvatar({ groupId: tempId, userId: currentUser._id, file })
+                : await uploadGroupBanner({ groupId: tempId, userId: currentUser._id, file });
+            const url = res.url || res.file?.url;
             if (type === 'avatar') setNewCommAvatarUrl(url);
             if (type === 'banner') setNewCommBannerUrl(url);
         } catch (err) {
@@ -304,9 +307,11 @@ const CommunityItem: React.FC<{ community: any, userGroups: any[], onOpenGroup: 
         const file = e.target.files?.[0];
         if (!file) return;
         try {
-            const { uploadToR2 } = await import('../services/storageService');
-            const res = await uploadToR2({ file });
-            const url = res.file.url;
+            const { uploadGroupAvatar, uploadGroupBanner } = await import('../services/storageService');
+            const res = type === 'avatar'
+                ? await uploadGroupAvatar({ groupId: community._id, userId: currentUser._id, file })
+                : await uploadGroupBanner({ groupId: community._id, userId: currentUser._id, file });
+            const url = res.url || res.file?.url;
             if (type === 'avatar') setEditAvatarUrl(url);
             if (type === 'banner') setEditBannerUrl(url);
         } catch (err) {

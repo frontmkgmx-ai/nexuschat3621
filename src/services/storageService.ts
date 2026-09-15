@@ -1,25 +1,13 @@
 import { CALL_API_BASE } from './callApi';
 
-function cleanEnvUrl(url?: string): string {
-  if (!url) return "";
-  if (url.includes('google.com/url')) {
-    try {
-      const urlObj = new URL(url);
-      return decodeURIComponent(urlObj.searchParams.get('q') || url);
-    } catch {
-      return url;
-    }
-  }
-  return url;
-}
-
-const MYCLOUD_BUCKET_ID = "5500ceff-6d51-4f33-aee4-a07e2725ddaf";
+const STREAMX_BUCKET_ID = import.meta.env.VITE_STREAMX_BUCKET_ID || "d36cc6d9-ad6d-4243-bd39-0543b4bea4be";
+// Fallback para manter componentes antigos funcionando
+const MYCLOUD_BUCKET_ID = STREAMX_BUCKET_ID;
 
 function generateUniquePath(file: File, folder: string = 'files'): string {
-  const timestamp = Date.now();
-  const randomStr = Math.random().toString(36).substring(2, 15);
+  const uuid = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
   const ext = file.name.split('.').pop()?.toLowerCase() || 'bin';
-  return `${folder}/${timestamp}-${randomStr}.${ext}`;
+  return `${folder}/${uuid}.${ext}`;
 }
 
 export function getPublicFileUrl(path: string): string {
@@ -27,8 +15,13 @@ export function getPublicFileUrl(path: string): string {
   if (path.startsWith('http://') || path.startsWith('https://')) return path;
   
   const cleanPath = path.startsWith('/') ? path.substring(1) : path;
-  // Proxy via server to inject X-API-Key natively without exposing to frontend
-  return `${CALL_API_BASE}/api/storage/v1/buckets/${MYCLOUD_BUCKET_ID}/objects/${encodeURIComponent(cleanPath)}/stream`;
+  
+  // Verifica se o caminho já é uma URL legada antiga com o bucket antigo
+  if (cleanPath.includes('/objects/') && cleanPath.includes('5500ceff-6d51-4f33-aee4-a07e2725ddaf')) {
+     return `${CALL_API_BASE}/api/storage/v1/buckets/5500ceff-6d51-4f33-aee4-a07e2725ddaf/objects/${encodeURIComponent(cleanPath.split('/objects/')[1]?.replace('/stream', '') || '')}/stream`;
+  }
+  
+  return `${CALL_API_BASE}/api/storage/v1/buckets/${STREAMX_BUCKET_ID}/objects/${encodeURIComponent(cleanPath)}/stream`;
 }
 
 export function getEmbedFileUrl(path: string): string {
@@ -45,7 +38,7 @@ export function sanitizeUrl(url: string | null | undefined): string {
 }
 
 export async function getSysInfo(): Promise<{ status: string, storage: string }> {
-  return { status: "online", storage: "mycloud" };
+  return { status: "online", storage: "streamx" };
 }
 
 interface UploadFileParams {
@@ -64,13 +57,13 @@ interface UploadedFileSuccess {
   file?: any; 
 }
 
-export async function uploadToR2({ file, folder = 'files', onProgress }: UploadFileParams): Promise<UploadedFileSuccess> {
+export async function uploadMedia({ file, folder = 'files', onProgress }: UploadFileParams): Promise<UploadedFileSuccess> {
   const path = generateUniquePath(file, folder);
   const contentType = file.type || 'application/octet-stream';
 
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    const url = `${CALL_API_BASE}/api/storage/v1/buckets/${MYCLOUD_BUCKET_ID}/objects`;
+    const url = `${CALL_API_BASE}/api/storage/v1/buckets/${STREAMX_BUCKET_ID}/objects`;
     xhr.open("POST", url);
     
     const formData = new FormData();
@@ -98,7 +91,7 @@ export async function uploadToR2({ file, folder = 'files', onProgress }: UploadF
           url: publicUrl,
           mimeType: contentType,
           size: file.size,
-          storage: "mycloud",
+          storage: "streamx",
           file: {
             name: file.name,
             mimeType: contentType,
@@ -120,68 +113,85 @@ export async function uploadToR2({ file, folder = 'files', onProgress }: UploadF
   });
 }
 
-// Helper aliases
+// Compatibilidade legada
+export const uploadToR2 = uploadMedia;
+export const uploadToMyCloud = uploadMedia;
+
 export async function uploadProfilePhoto({ userId, file, onProgress }: { userId: string, file: File, onProgress?: (p: number) => void }) {
-  return uploadToR2({ file, folder: `avatars/${userId}`, onProgress });
+  const isGif = file.type === 'image/gif';
+  const folder = isGif ? `users/${userId}/avatar-gif` : `users/${userId}/avatar`;
+  return uploadMedia({ file, folder, onProgress });
+}
+
+export async function uploadUserBanner({ userId, file, onProgress }: { userId: string, file: File, onProgress?: (p: number) => void }) {
+  return uploadMedia({ file, folder: `users/${userId}/banner`, onProgress });
 }
 
 export async function uploadUserPhoto({ userId, file, onProgress }: { userId: string, file: File, onProgress?: (p: number) => void }) {
-  return uploadToR2({ file, folder: `avatars/${userId}`, onProgress });
+  return uploadProfilePhoto({ userId, file, onProgress });
 }
 
 export async function uploadChatImage({ chatId, userId, messageId, file, onProgress }: { chatId: string, userId: string, messageId: string, file: File, onProgress?: (p: number) => void }) {
-  return uploadToR2({ file, folder: `images/${chatId}/${messageId || Date.now()}`, onProgress });
+  return uploadMedia({ file, folder: `chats/${chatId}/${messageId || Date.now()}/images`, onProgress });
 }
 
 export async function uploadChatVideo({ chatId, userId, messageId, file, onProgress }: { chatId: string, userId: string, messageId: string, file: File, onProgress?: (p: number) => void }) {
-  return uploadToR2({ file, folder: `video/${chatId}/${messageId || Date.now()}`, onProgress });
+  return uploadMedia({ file, folder: `chats/${chatId}/${messageId || Date.now()}/videos`, onProgress });
 }
 
 export async function uploadChatAudio({ chatId, userId, messageId, file, onProgress }: { chatId: string, userId: string, messageId: string, file: File, onProgress?: (p: number) => void }) {
-  return uploadToR2({ file, folder: `audio/${chatId}/${messageId || Date.now()}`, onProgress });
+  return uploadMedia({ file, folder: `chats/${chatId}/${messageId || Date.now()}/audio`, onProgress });
 }
 
 export async function uploadChatDocument({ chatId, userId, messageId, file, onProgress }: { chatId: string, userId: string, messageId: string, file: File, onProgress?: (p: number) => void }) {
-  return uploadToR2({ file, folder: `files/${chatId}/${messageId || Date.now()}`, onProgress });
+  return uploadMedia({ file, folder: `chats/${chatId}/${messageId || Date.now()}/documents`, onProgress });
 }
 
 export async function uploadGroupImage({ groupId, userId, messageId, file, onProgress }: { groupId: string, userId: string, messageId: string, file: File, onProgress?: (p: number) => void }) {
-  return uploadToR2({ file, folder: `images/${groupId}/${messageId || Date.now()}`, onProgress });
+  return uploadMedia({ file, folder: `chats/${groupId}/${messageId || Date.now()}/images`, onProgress });
 }
 
 export async function uploadGroupVideo({ groupId, userId, messageId, file, onProgress }: { groupId: string, userId: string, messageId: string, file: File, onProgress?: (p: number) => void }) {
-  return uploadToR2({ file, folder: `video/${groupId}/${messageId || Date.now()}`, onProgress });
+  return uploadMedia({ file, folder: `chats/${groupId}/${messageId || Date.now()}/videos`, onProgress });
 }
 
 export async function uploadGroupAudio({ groupId, userId, messageId, file, onProgress }: { groupId: string, userId: string, messageId: string, file: File, onProgress?: (p: number) => void }) {
-  return uploadToR2({ file, folder: `audio/${groupId}/${messageId || Date.now()}`, onProgress });
+  return uploadMedia({ file, folder: `chats/${groupId}/${messageId || Date.now()}/audio`, onProgress });
 }
 
 export async function uploadGroupDocument({ groupId, userId, messageId, file, onProgress }: { groupId: string, userId: string, messageId: string, file: File, onProgress?: (p: number) => void }) {
-  return uploadToR2({ file, folder: `files/${groupId}/${messageId || Date.now()}`, onProgress });
+  return uploadMedia({ file, folder: `chats/${groupId}/${messageId || Date.now()}/documents`, onProgress });
 }
 
 export async function uploadGroupAvatar({ groupId, userId, file, onProgress }: { groupId: string, userId: string, file: File, onProgress?: (p: number) => void }) {
-  return uploadToR2({ file, folder: `avatars/${groupId}`, onProgress });
+  return uploadMedia({ file, folder: `communities/${groupId}/avatar`, onProgress });
+}
+
+export async function uploadGroupBanner({ groupId, userId, file, onProgress }: { groupId: string, userId: string, file: File, onProgress?: (p: number) => void }) {
+  return uploadMedia({ file, folder: `communities/${groupId}/banner`, onProgress });
+}
+
+export async function uploadStatusMedia({ userId, statusId, file, onProgress }: { userId: string, statusId: string, file: File, onProgress?: (p: number) => void }) {
+  return uploadMedia({ file, folder: `statuses/${userId}/${statusId}`, onProgress });
 }
 
 export async function uploadVoiceToStorage(conversationId: string, messageId: string, blob: Blob, onProgress?: (p: number) => void) {
-  const uuid = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+  const uuid = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
   const fileType = blob.type || 'audio/webm;codecs=opus';
   let ext = 'webm';
   if (fileType.includes('mp4')) ext = 'm4a';
   else if (fileType.includes('aac')) ext = 'aac';
   else if (fileType.includes('mpeg')) ext = 'mp3';
-
+  
   const file = new File([blob], `voice-${uuid}.${ext}`, { type: fileType });
-  const result = await uploadToR2({ file, folder: `audio/${conversationId}/${messageId || Date.now()}`, onProgress });
+  const result = await uploadMedia({ file, folder: `chats/${conversationId}/${messageId || Date.now()}/audio`, onProgress });
   
   return { 
-    path: result.key, 
-    url: result.url, 
-    size: result.size, 
-    mimeType: result.mimeType,
-    file: result.file
+     path: result.key,
+     url: result.url,
+     size: result.size,
+     mimeType: result.mimeType,
+     file: result.file
   };
 }
 
@@ -191,16 +201,24 @@ export function getVoiceMediaUrl(path: string): string {
 
 export async function deleteFile(fileIdOrPath: string): Promise<{success: boolean}> {
   let file = fileIdOrPath;
+  let bucketId = STREAMX_BUCKET_ID;
+  
   if (fileIdOrPath.startsWith('http')) {
-    const match = fileIdOrPath.match(/\/objects\/([^\/]+)\/stream/);
+    const match = fileIdOrPath.match(/\/buckets\/([^\/]+)\/objects\/([^\/]+)\/stream/);
     if (match) {
-       file = decodeURIComponent(match[1]);
+       bucketId = match[1];
+       file = decodeURIComponent(match[2]);
     } else {
-       file = fileIdOrPath.split('/').pop() || fileIdOrPath;
+       const legacyMatch = fileIdOrPath.match(/\/objects\/([^\/]+)\/stream/);
+       if (legacyMatch) {
+         file = decodeURIComponent(legacyMatch[1]);
+       } else {
+         file = fileIdOrPath.split('/').pop() || fileIdOrPath;
+       }
     }
   }
-
-  const res = await fetch(`${CALL_API_BASE}/api/storage/v1/buckets/${MYCLOUD_BUCKET_ID}/objects/${encodeURIComponent(file)}`, {
+  
+  const res = await fetch(`${CALL_API_BASE}/api/storage/v1/buckets/${bucketId}/objects/${encodeURIComponent(file)}`, {
       method: "DELETE",
       headers: { "Content-Type": "application/json" }
   });
@@ -213,7 +231,7 @@ export async function deleteFile(fileIdOrPath: string): Promise<{success: boolea
 }
 
 export async function listFiles(bucket = "attachments"): Promise<any[]> {
-  const res = await fetch(`${CALL_API_BASE}/api/storage/v1/buckets/${MYCLOUD_BUCKET_ID}/objects`);
+  const res = await fetch(`${CALL_API_BASE}/api/storage/v1/buckets/${STREAMX_BUCKET_ID}/objects`);
   if (!res.ok) return [];
   const data = await res.json();
   const contents = data.objects || data.contents || data || [];
@@ -235,5 +253,4 @@ export async function mkdirFileApi(path: string): Promise<{success: boolean}> {
   return { success: true };
 }
 
-export const uploadToMyCloud = uploadToR2;
-export { MYCLOUD_BUCKET_ID };
+export { STREAMX_BUCKET_ID as MYCLOUD_BUCKET_ID, STREAMX_BUCKET_ID };

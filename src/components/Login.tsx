@@ -212,6 +212,27 @@ export default function Login({ onLogin }: { onLogin: (user: any, isNewUser?: bo
                             <Camera className="w-6 h-6 mb-1 opacity-50" />
                           </div>
                         )}
+                        <input 
+                          type="file" 
+                          accept="image/*" 
+                          className="absolute inset-0 opacity-0 cursor-pointer"
+                          onChange={async (e) => {
+                             const file = e.target.files?.[0];
+                             if (file) {
+                               const tempUserId = "temp-" + Date.now();
+                               const { uploadProfilePhoto } = await import('../services/storageService');
+                               try {
+                                 setLoading(true);
+                                 const res = await uploadProfilePhoto({ userId: tempUserId, file });
+                                 if (res.success) setAvatarUrl(res.url);
+                               } catch (err) {
+                                 setError("Erro ao fazer upload da imagem");
+                               } finally {
+                                 setLoading(false);
+                               }
+                             }
+                          }}
+                        />
                       </div>
                     </div>
                   )}

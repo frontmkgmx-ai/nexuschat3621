@@ -51,7 +51,7 @@ async function startServer() {
       if (!origin || allowedOrigins.includes(origin) || origin.endsWith('.run.app')) {
         callback(null, true);
       } else {
-        callback(null, true); // Allow all for now
+        callback(new Error('Not allowed by CORS')); 
       }
     },
     credentials: true,
@@ -123,7 +123,31 @@ async function startServer() {
     pathFilter: ["/api/storage", "/api/s3", "/storage"],
     on: {
       proxyReq: (proxyReq, req, res) => {
-        const apiKey = process.env.MYCLOUD_API_KEY || "mk_SUA_CHAVE";
+        // Limitar rotas e métodos
+        const method = req.method;
+        if (!['GET', 'POST', 'DELETE', 'OPTIONS'].includes(method!)) {
+           res.writeHead(405, { 'Content-Type': 'application/json' });
+           res.end(JSON.stringify({ error: "Method not allowed" }));
+           proxyReq.destroy();
+           return;
+        }
+
+        // Validar tamanho (max 250MB fallback)
+        const contentLength = parseInt(req.headers['content-length'] || '0', 10);
+        if (method === 'POST' && contentLength > 262144000) { // 250MB
+           res.writeHead(413, { 'Content-Type': 'application/json' });
+           res.end(JSON.stringify({ error: "Payload too large" }));
+           proxyReq.destroy();
+           return;
+        }
+
+        const apiKey = process.env.STREAMX_API_KEY || process.env.MYCLOUD_API_KEY;
+        if (!apiKey) {
+           res.writeHead(500, { 'Content-Type': 'application/json' });
+           res.end(JSON.stringify({ error: "Storage API Key is not configured." }));
+           proxyReq.destroy();
+           return;
+        }
         proxyReq.setHeader("X-API-Key", apiKey);
         proxyReq.setHeader("Authorization", `Bearer ${apiKey}`);
       }
