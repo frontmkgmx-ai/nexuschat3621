@@ -12,7 +12,7 @@ from livekit.agents import (
     inference,
     room_io,
 )
-from livekit.plugins import ai_coustics, anam, openai
+from livekit.plugins import ai_coustics, openai
 
 logger = logging.getLogger("agent")
 
@@ -111,11 +111,11 @@ async def my_agent(ctx: JobContext):
         # Text-to-speech (TTS) is your agent's voice, turning the LLM's text into speech that the user can hear
         # See all available models as well as voice selections at https://docs.livekit.io/agents/models/tts/
         tts=inference.TTS(
-            model="cartesia",
+            model="cartesia/sonic-3.5",
             language="pt",
-            voice="a5136bf9-224c-4d76-b823-52bd5efcffcc",
+            voice="95856005-0332-41b0-935f-352e296aa0df",
             extra_kwargs={
-                "speed": 0.95,
+                "speed": 0.85,
                 "volume": 1.0
             }
         ),
