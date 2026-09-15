@@ -18,7 +18,7 @@ content = AGENT.read_text(encoding="utf-8")
 
 # Never reintroduce the retired/unsupported ElevenLabs Inference model.
 if "model=\"elevenlabs/eleven_multilingual_v2\"" in content:
-    model = os.getenv("LIVEKIT_TTS_MODEL", "cartesia/sonic-3.6")
+    model = os.getenv("LIVEKIT_TTS_MODEL", "cartesia/sonic-3.5")
     content = content.replace(
         'model="elevenlabs/eleven_multilingual_v2"',
         f'model="{model}"',

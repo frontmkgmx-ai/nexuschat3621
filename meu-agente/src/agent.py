@@ -32,9 +32,11 @@ load_dotenv("../.env")
 # Note on "7iWpEw5Nt05GC1B0": This ID is an ElevenLabs-specific voice ID (Paulo).
 # ElevenLabs is NOT supported as a provider on LiveKit Inference ("no TTS deployments found for model: elevenlabs/...").
 # Therefore, LiveKit Inference uses Cartesia with a confirmed Portuguese voice.
-DEFAULT_TTS_MODEL = os.getenv("TTS_MODEL", "cartesia/sonic-3.5")
-DEFAULT_TTS_LANGUAGE = os.getenv("TTS_LANGUAGE", "pt")
-DEFAULT_TTS_VOICE = os.getenv("TTS_VOICE", "95856005-0332-41b0-935f-352e296aa0df")
+# Keep a known-good LiveKit Inference configuration. Do not let a stale
+# production environment override the provider/voice selected in the repo.
+DEFAULT_TTS_MODEL = "cartesia/sonic-3.5"
+DEFAULT_TTS_LANGUAGE = "pt"
+DEFAULT_TTS_VOICE = "95856005-0332-41b0-935f-352e296aa0df"
 
 
 class DiagnosticTTS(inference.TTS):

@@ -119,7 +119,24 @@ function ActionCard({ action, onNavigate, onSend }: { action: NexusAgentAction; 
 function CustomChat({ onNavigate }: { onNavigate?: Props['onNavigate'] }) {
   const { chatMessages, send, isSending } = useChat();
   const [input, setInput] = useState('');
-  const sendText = (text: string) => { if (text.trim() && !isSending) send(text); };
-  const handleSend = (e: React.FormEvent) => { e.preventDefault(); sendText(input); setInput(''); };
-  return <div className="flex flex-col h-full w-full bg-zinc-900/80"><div className="p-3 border-b border-zinc-800 font-medium text-white bg-zinc-900">Mensagens e ações</div><div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3 custom-scrollbar">{chatMessages.length === 0 && <div className="text-center text-zinc-500 text-sm mt-4">Nenhuma mensagem ainda.</div>}{chatMessages.map((msg, i) => { const action = parseNexusAgentAction(msg.message || ''); const isAgent = msg.from?.identity !== undefined && !msg.from.identity.startsWith('user-'); return <div key={msg.id || i} className={`max-w-[90%] rounded-xl px-3 py-2 text-sm ${isAgent ? 'bg-zinc-800 text-zinc-200 self-start' : 'bg-indigo-600 text-white self-end'}`}>{action ? <ActionCard action={action} onNavigate={onNavigate} onSend={sendText} /> : msg.message}</div>; })}</div><form onSubmit={handleSend} className="p-3 border-t border-zinc-800 flex gap-2"><input type="text" value={input} onChange={e => setInput(e.target.value)} placeholder="Digite uma mensagem..." className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500" /><button type="submit" disabled={isSending || !input.trim()} className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-medium">Enviar</button></form></div>;
+  const [sendError, setSendError] = useState<string | null>(null);
+  const sendText = async (text: string) => {
+    const value = text.trim();
+    if (!value || isSending) return false;
+    setSendError(null);
+    try {
+      await send(value);
+      return true;
+    } catch (error: any) {
+      console.error('LiveKit chat send failed:', error);
+      setSendError(error?.message || 'Não foi possível enviar a mensagem.');
+      toast.error('Não foi possível enviar a mensagem ao agente.');
+      return false;
+    }
+  };
+  const handleSend = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (await sendText(input)) setInput('');
+  };
+  return <div className="flex flex-col h-full min-h-0 w-full bg-zinc-900/80"><div className="p-3 border-b border-zinc-800 font-medium text-white bg-zinc-900">Mensagens e ações</div><div className="flex-1 min-h-0 overflow-y-auto p-4 flex flex-col gap-3 custom-scrollbar" aria-live="polite">{chatMessages.length === 0 && <div className="text-center text-zinc-500 text-sm mt-4">Nenhuma mensagem ainda.</div>}{chatMessages.map((msg, i) => { const messageText = typeof msg.message === 'string' ? msg.message : ''; const action = parseNexusAgentAction(messageText); const isAgent = Boolean(msg.from && !msg.from.isLocal); return <div key={`${msg.timestamp || 'message'}-${i}`} className={`max-w-[90%] rounded-xl px-3 py-2 text-sm break-words ${isAgent ? 'bg-zinc-800 text-zinc-200 self-start' : 'bg-indigo-600 text-white self-end'}`}>{action ? <ActionCard action={action} onNavigate={onNavigate} onSend={sendText} /> : messageText || 'Mensagem sem conteúdo'}</div>; })}</div>{sendError && <div className="px-3 py-1 text-xs text-red-300 bg-red-950/40" role="alert">{sendError}</div>}<form onSubmit={handleSend} className="p-3 border-t border-zinc-800 flex gap-2"><input type="text" value={input} onChange={e => setInput(e.target.value)} placeholder="Digite uma mensagem..." aria-label="Mensagem para o Nexus AI" className="flex-1 min-w-0 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500" /><button type="submit" disabled={isSending || !input.trim()} className="shrink-0 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-medium">Enviar</button></form></div>;
 }
