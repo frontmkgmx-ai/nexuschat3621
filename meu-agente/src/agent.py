@@ -111,13 +111,9 @@ async def my_agent(ctx: JobContext):
         # Text-to-speech (TTS) is your agent's voice, turning the LLM's text into speech that the user can hear
         # See all available models as well as voice selections at https://docs.livekit.io/agents/models/tts/
         tts=inference.TTS(
-            model="cartesia/sonic-3.5",
+            model="elevenlabs/eleven_multilingual_v2",
             language="pt",
-            voice="95856005-0332-41b0-935f-352e296aa0df",
-            extra_kwargs={
-                "speed": 0.85,
-                "volume": 1.0
-            }
+            voice="7iWpEw5Nt05GC1B0",
         ),
         turn_handling=TurnHandlingOptions(
             # The LiveKit turn detector determines when the user is done speaking and the agent should respond.
