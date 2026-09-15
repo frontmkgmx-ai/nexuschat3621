@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   LiveKitRoom,
   RoomAudioRenderer,
+  StartAudio,
   BarVisualizer,
   useVoiceAssistant,
   useConnectionState,
@@ -68,6 +69,7 @@ export default function NexusAI({ currentUser, onClose, onNavigate }: Props) {
             onError={(err: any) => { console.error('LiveKit Error:', err); toast.error('Falha na conexão com o servidor AI.'); setToken(null); setErrorState(true); }}
             onDisconnected={() => { setToken(null); onClose(); }}>
             <RoomAudioRenderer />
+            <StartAudio label="Ativar áudio do Nexus AI" className="mx-auto mb-2 rounded-lg bg-indigo-600 px-3 py-2 text-sm text-white" />
             <AgentInterface onClose={onClose} onNavigate={onNavigate} />
           </LiveKitRoom>
         )}

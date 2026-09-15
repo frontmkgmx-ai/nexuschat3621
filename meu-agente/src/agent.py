@@ -296,11 +296,21 @@ async def my_agent(ctx: JobContext):
     # STT started when user enters/speaks
     logger.info(f"STT_START room={room_name}")
 
+    def on_text_input(session: AgentSession, event: room_io.TextInputEvent) -> None:
+        """Forward frontend `lk.chat` messages into the same conversation pipeline."""
+        text = (event.text or "").strip()
+        if not text:
+            return
+        logger.info(f"TEXT_INPUT_RECEIVED room={room_name} text_length={len(text)}")
+        session.interrupt()
+        session.generate_reply(user_input=text)
+
     # Start the session
     await session.start(
         agent=Assistant(),
         room=ctx.room,
         room_options=room_io.RoomOptions(
+            text_input=room_io.TextInputOptions(text_input_cb=on_text_input),
             audio_input=room_io.AudioInputOptions(
                 noise_cancellation=ai_coustics.audio_enhancement(
                     model=ai_coustics.EnhancerModel.QUAIL_VF_S
