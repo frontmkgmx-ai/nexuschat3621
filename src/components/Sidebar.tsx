@@ -31,7 +31,7 @@ import {
   CheckCircle2,
   Loader2,
   MessageSquare,
-  Trash2, Archive, Download, FileText, UserPlus as AddUserIcon, MoreVertical, BadgeCheck, QrCode, Monitor, Link2
+  Trash2, Archive, Download, FileText, UserPlus as AddUserIcon, MoreVertical, BadgeCheck, QrCode, Monitor, Link2, Bot
 } from "lucide-react";
 import { format } from "date-fns";
 import { parsePhoneNumber, getCountryCallingCode, CountryCode, getCountries } from "libphonenumber-js";
@@ -47,8 +47,9 @@ import Inpage from "./Inpage";
 import TermsAndPrivacy from "./TermsAndPrivacy";
 import CommunitiesTab from "./CommunitiesTab";
 import ScanQRCodeView from "./ScanQRCodeView";
+import NexusAI from "./NexusAI";
 
-type InternalTab = "CHATS" | "CONTACTS" | "GROUPS" | "SETTINGS" | "PROFILE" | "INPAGE" | "COMMUNITIES" | "NEWS" | "QRCODE";
+type InternalTab = "CHATS" | "CONTACTS" | "GROUPS" | "SETTINGS" | "PROFILE" | "INPAGE" | "COMMUNITIES" | "NEWS" | "QRCODE" | "NEXUS_AI";
 
 import ConfirmModal from "./ConfirmModal";
 
@@ -695,6 +696,7 @@ export default function Sidebar({
         </div>
 
         <div className="flex-1 flex flex-col gap-4 w-full px-3">
+          <NavRailItem icon={<Bot className={`w-6 h-6 ${activeTab === 'NEXUS_AI' ? 'text-indigo-400' : 'text-purple-400'}`} />} label="Nexus AI" active={activeTab === "NEXUS_AI"} onClick={() => setActiveTab("NEXUS_AI")} />
           <NavRailItem icon={<MessageCircle className="w-6 h-6" />} label="Chats" active={activeTab === "CHATS"} onClick={() => setActiveTab("CHATS")} />
           <NavRailItem icon={<Users className="w-6 h-6" />} label="Contatos" active={activeTab === "CONTACTS"} onClick={() => setActiveTab("CONTACTS")} />
           <NavRailItem icon={<CircleDashed className="w-6 h-6" />} label="Status" active={activeTab === "INPAGE"} onClick={() => setActiveTab("INPAGE")} />
@@ -927,7 +929,13 @@ export default function Sidebar({
                   );
                 })}
               </div>
-              <div className="absolute bottom-6 right-6 z-50">
+              <div className="absolute bottom-6 right-6 z-50 flex flex-col gap-3">
+                <button 
+                  onClick={() => setActiveTab("NEXUS_AI")}
+                  className="w-14 h-14 rounded-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white flex items-center justify-center shadow-lg shadow-purple-500/30 hover:scale-105 active:scale-95 transition-all md:hidden"
+                >
+                   <Bot className="w-7 h-7" />
+                </button>
                 <button 
                   onClick={() => setShowContactPicker(true)}
                   className="w-14 h-14 rounded-full bg-indigo-600 text-white flex items-center justify-center shadow-lg shadow-indigo-600/30 hover:bg-indigo-500 transition-all hover:scale-105 active:scale-95"
@@ -1366,6 +1374,19 @@ export default function Sidebar({
                     </div>
                  </div>
               </div>
+            </motion.div>
+          )}
+
+          {activeTab === "NEXUS_AI" && (
+            <motion.div
+              key="nexusai"
+              initial={{ x: 20, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={{ x: 20, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="flex flex-col h-full absolute inset-0 w-full"
+            >
+               <NexusAI currentUser={currentUser} onClose={() => setActiveTab("CHATS")} />
             </motion.div>
           )}
 

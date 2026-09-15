@@ -6,6 +6,7 @@ import { Server as SocketIOServer } from "socket.io";
 import { createServer as createHttpServer } from "http";
 import dotenv from "dotenv";
 import cors from "cors";
+import { AccessToken } from "livekit-server-sdk";
 
 dotenv.config();
 
@@ -304,6 +305,35 @@ async function startServer() {
         screenShares: "webrtc/{callId}/screenShares/{userId}"
       }
     });
+  });
+
+  // LiveKit token endpoint
+  app.get("/api/livekit/token", async (req, res) => {
+    try {
+      const roomName = (req.query.room as string) || "nexus-ai-room";
+      const participantName = (req.query.name as string) || "user-" + Math.floor(Math.random() * 10000);
+      
+      const apiKey = process.env.LIVEKIT_API_KEY;
+      const apiSecret = process.env.LIVEKIT_API_SECRET;
+      const wsUrl = process.env.LIVEKIT_URL;
+
+      if (!apiKey || !apiSecret || !wsUrl) {
+         return res.status(500).json({ error: "LiveKit credentials not configured" });
+      }
+
+      const at = new AccessToken(apiKey, apiSecret, {
+        identity: participantName,
+        name: participantName,
+      });
+
+      at.addGrant({ roomJoin: true, room: roomName, canPublish: true, canSubscribe: true });
+
+      const token = await at.toJwt();
+      res.json({ token, url: wsUrl });
+    } catch (error: any) {
+      console.error("LiveKit token error:", error);
+      res.status(500).json({ error: error.message });
+    }
   });
 
   // Call API endpoints handler to support callApi methods with proper JSON responses
